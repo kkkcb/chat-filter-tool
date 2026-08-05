@@ -1,0 +1,41 @@
+# Environment
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Data (user content)
+inbox/
+data/
+
+# WeChat sensitive data
+wechat-export/all_keys.json
+wechat-export/config.json
+wechat-export/decrypted/
+wechat-export/chat_exports/
+wechat-export/*.db
+wechat-export/exports/
+
+# Database
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+wechat-export.zip
+*.zip

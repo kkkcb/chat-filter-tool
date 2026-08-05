@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信聊天记录导出工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --g:#07c160;--gd:#06ad56;--gl:#ecfdf5;
+  --sb:#1e1e2e;--sb2:#262637;--sb3:#2e2e42;
+  --bg:#f5f5f5;--card:#fff;
+  --t1:#1a1a2e;--t2:#64748b;--t3:#94a3b8;
+  --bd:#e2e8f0;--danger:#ef4444;--warn:#f59e0b;--blue:#3b82f6;
+  --radius:10px;
+  --shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg:0 10px 25px rgba(0,0,0,0.08);
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--t1);display:flex}
+
+.app{display:flex;width:100%;height:100%}
+
+.sidebar{width:320px;background:var(--sb);display:flex;flex-direction:column;flex-shrink:0;border-right:1px solid rgba(255,255,255,0.05)}
+.sb-head{padding:20px 16px 12px}
+.sb-head h1{font-size:15px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;letter-spacing:0.3px}
+.sb-head h1 svg{width:20px;height:20px;fill:var(--g)}
+
+.search-wrap{position:relative;margin-top:14px}
+.search-wrap input{width:100%;padding:9px 12px 9px 36px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:var(--sb2);color:#e2e8f0;font-size:13px;outline:none;transition:all .2s}
+.search-wrap input:focus{border-color:var(--g);background:var(--sb3);box-shadow:0 0 0 3px rgba(7,193,96,0.1)}
+.search-wrap input::placeholder{color:#64748b}
+.search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;fill:#64748b;pointer-events:none}
+.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;cursor:pointer;font-size:16px;line-height:1;display:none;padding:2px 4px}
+.search-clear:hover{color:#e2e8f0}
+
+.filters{display:flex;gap:4px;padding:10px 16px 6px}
+.ftab{padding:5px 14px;border-radius:14px;font-size:12px;font-weight:500;cursor:pointer;color:#94a3b8;background:transparent;border:none;transition:all .2s;letter-spacing:0.2px}
+.ftab:hover{color:#e2e8f0;background:rgba(255,255,255,0.06)}
+.ftab.on{background:var(--g);color:#fff}
+.ftab .cnt{font-size:10px;opacity:0.7;margin-left:2px}
+
+.vlist-wrap{flex:1;overflow:hidden;position:relative}
+.vlist-scroll{height:100%;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent}
+.vlist-scroll::-webkit-scrollbar{width:5px}
+.vlist-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+.vlist-scroll::-webkit-scrollbar-track{background:transparent}
+.vlist-spacer{}
+.vlist-items{position:relative;will-change:transform}
+
+.ci{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .12s;user-select:none;border-left:3px solid transparent}
+.ci:hover{background:rgba(255,255,255,0.04)}
+.ci.sel{background:rgba(7,193,96,0.08);border-left-color:var(--g)}
+.ci-av{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:1px}
+.ci-av.grp{background:linear-gradient(135deg,#3b82f6,#6366f1)}
+.ci-av.usr{background:linear-gradient(135deg,#07c160,#34d399)}
+.ci-body{flex:1;min-width:0}
+.ci-name{font-size:13px;font-weight:500;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-sub{font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ci-chk{width:18px;height:18px;border-radius:5px;border:2px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.ci.sel .ci-chk{background:var(--g);border-color:var(--g)}
+.ci.sel .ci-chk::after{content:'✓';color:#fff;font-size:11px;font-weight:700}
+
+.sb-foot{padding:10px 16px;border-top:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between;align-items:center}
+.sb-stat{font-size:11px;color:#64748b}
+.sb-btn{background:none;border:none;color:var(--g);font-size:12px;cursor:pointer;padding:4px 8px;border-radius:4px}
+.sb-btn:hover{background:rgba(7,193,96,0.1)}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{background:var(--card);padding:14px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-title{font-size:17px;font-weight:700;letter-spacing:-0.2px}
+.topbar-sub{font-size:13px;color:var(--t2);margin-top:2px}
+
+.content{flex:1;overflow-y:auto;padding:24px;scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.1) transparent}
+.content::-webkit-scrollbar{width:6px}
+.content::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.1);border-radius:3px}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--t2)}
+.empty-icon{width:80px;height:80px;border-radius:20px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:32px}
+.empty h3{font-size:16px;font-weight:600;color:var(--t1)}
+.empty p{font-size:13px;color:var(--t3)}
+.empty-hint{display:flex;gap:8px;margin-top:8px}
+.empty-hint span{background:var(--gl);color:var(--gd);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:500}
+
+.panel{display:none}
+.panel.show{display:block}
+
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--bd);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h3{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;color:var(--t1)}
+.card h3 .badge{background:var(--g);color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:36px}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;background:var(--gl);color:#065f46;border:1px solid #a7f3d0;animation:tagIn .2s ease}
+@keyframes tagIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}
+.tag .x{cursor:pointer;opacity:0.5;transition:opacity .15s;font-size:15px;line-height:1}
+.tag .x:hover{opacity:1}
+
+.ctrls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sel-fmt{padding:8px 14px;border-radius:8px;border:1px solid var(--bd);font-size:13px;outline:none;cursor:pointer;background:var(--card);color:var(--t1);font-weight:500}
+.sel-fmt:focus{border-color:var(--g)}
+.btn{padding:9px 24px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;letter-spacing:0.2px}
+.btn-p{background:var(--g);color:#fff}
+.btn-p:hover:not(:disabled){background:var(--gd);transform:translateY(-1px);box-shadow:0 4px 14px rgba(7,193,96,0.3)}
+.btn-p:disabled{background:#cbd5e1;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-s{background:#f1f5f9;color:var(--t1);border:1px solid var(--bd)}
+.btn-s:hover{background:#e2e8f0}
+.btn-d{background:none;border:1px solid var(--danger);color:var(--danger);padding:6px 14px;font-size:12px}
+.btn-d:hover{background:var(--danger);color:#fff}
+
+.pbar{width:100%;height:4px;background:var(--bd);border-radius:2px;margin-top:16px;overflow:hidden;opacity:0;transition:opacity .3s}
+.pbar.on{opacity:1}
+.pfill{height:100%;background:linear-gradient(90deg,var(--g),#34d399);border-radius:2px;transition:width .4s ease;width:0}
+.ptext{font-size:12px;color:var(--t2);margin-top:6px;text-align:center}
+
+.rlist{}
+.ri{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:8px;margin-bottom:8px;border:1px solid var(--bd);transition:all .2s;background:var(--card)}
+.ri:hover{border-color:var(--g);box-shadow:0 2px 8px rgba(7,193,96,0.08)}
+.ri-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+.ri-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.ri-dot.ok{background:var(--g)}
+.ri-dot.run{background:var(--warn);animation:pulse 1s infinite}
+.ri-dot.err{background:var(--danger)}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
+.ri-info{min-width:0}
+.ri-name{font-size:14px;font-weight:600}
+.ri-meta{font-size:12px;color:var(--t2);margin-top:3px;display:flex;align-items:center;gap:8px}
+.ri-err{color:var(--danger);font-size:11px;margin-top:3px}
+.ri-acts{display:flex;gap:6px;flex-shrink:0}
+.dl-btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;border:1px solid var(--g);color:var(--g);background:transparent;cursor:pointer;transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.dl-btn:hover{background:var(--g);color:#fff}
+
+.tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--bd)}
+.tab{padding:10px 20px;font-size:13px;font-weight:600;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none}
+.tab:hover{color:var(--t1)}
+.tab.on{color:var(--g);border-bottom-color:var(--g)}
+
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+.spinner.dark{border-color:rgba(0,0,0,0.1);border-top-color:var(--g)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.files-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.fi{padding:12px 14px;border-radius:8px;border:1px solid var(--bd);display:flex;align-items:center;gap:10px;transition:all .15s}
+.fi:hover{border-color:var(--g);background:var(--gl)}
+.fi-icon{font-size:20px;flex-shrink:0}
+.fi-body{flex:1;min-width:0}
+.fi-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi-meta{font-size:11px;color:var(--t3);margin-top:2px}
+.fi-dl{font-size:11px;color:var(--g);text-decoration:none;font-weight:600}
+.fi-dl:hover{text-decoration:underline}
+
+.history-item{padding:14px 0;border-bottom:1px solid var(--bd)}
+.history-item:last-child{border-bottom:none}
+.history-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.history-time{font-size:12px;color:var(--t3)}
+.history-fmt{font-size:11px;background:#f1f5f9;padding:2px 8px;border-radius:4px;color:var(--t2)}
+.history-results{display:flex;flex-wrap:wrap;gap:6px}
+.hr-chip{font-size:12px;padding:3px 10px;border-radius:12px;background:var(--gl);color:#065f46}
+.hr-chip.err{background:#fef2f2;color:#991b1b}
+
+.toast-wrap{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;box-shadow:var(--shadow-lg);animation:toastIn .3s ease;max-width:360px}
+.toast.ok{background:var(--g)}
+.toast.err{background:var(--danger)}
+.toast.warn{background:var(--warn)}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+
+@media(max-width:768px){
+  .sidebar{width:260px}
+  .content{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="sidebar">
+  <div class="sb-head">
+    <h1>
+      <svg viewBox="0 0 24 24"><path d="M8.5 14.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S10.83 16 10 16s-1.5-.67-1.5-1.5zm5 0c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S15.83 16 15 16s-1.5-.67-1.5-1.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8 0-1.62.49-3.13 1.32-4.4C4.56 5.68 4 3.94 4 3.94s1.72.58 3.56 1.32A7.95 7.95 0 0112 4c4.41 0 8 3.59 8 8s-3.59 8-8 8z"/></svg>
+      微信聊天导出
+    </h1>
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input type="text" id="searchInput" placeholder="搜索联系人、群聊或微信号..." autocomplete="off">
+      <button class="search-clear" id="searchClear" onclick="clearSearch()">&times;</button>
+    </div>
+  </div>
+
+  <div class="filters" id="filters">
+    <button class="ftab on" data-f="all">全部</button>
+    <button class="ftab" data-f="user">联系人</button>
+    <button class="ftab" data-f="group">群聊</button>
+  </div>
+
+  <div class="vlist-wrap">
+    <div class="vlist-scroll" id="vscroll">
+      <div class="vlist-spacer" id="vspacer"></div>
+      <div class="vlist-items" id="vitems"></div>
+    </div>
+  </div>
+
+  <div class="sb-foot">
+    <span class="sb-stat" id="sbStat">加载中...</span>
+    <button class="sb-btn" id="selectAllBtn" onclick="toggleSelectAll()">全选</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">聊天记录导出</div>
+      <div class="topbar-sub" id="topSub">选择联系人开始导出</div>
+    </div>
+  </div>
+  <div class="content" id="content">
+
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">💬</div>
+      <h3>微信聊天记录导出工具</h3>
+      <p>从左侧列表选择联系人或群聊，支持多选批量导出</p>
+      <div class="empty-hint">
+        <span>支持搜索</span>
+        <span>批量导出</span>
+        <span>HTML/JSON</span>
+      </div>
+    </div>
+
+    <div class="panel" id="workPanel">
+      <div class="card">
+        <h3>已选择 <span class="badge" id="selCount">0</span></h3>
+        <div class="tags" id="selTags"></div>
+        <div class="ctrls">
+          <select class="sel-fmt" id="fmtSel">
+            <option value="html">HTML 格式（可读）</option>
+            <option value="json">JSON 格式（数据）</option>
+            <option value="both">HTML + JSON</option>
+          </select>
+          <button class="btn btn-p" id="exportBtn" onclick="startExport()">开始导出</button>
+          <button class="btn btn-s" onclick="clearSel()">清空</button>
+        </div>
+        <div class="pbar" id="pbar"><div class="pfill" id="pfill"></div></div>
+        <div class="ptext" id="ptext" style="display:none"></div>
+      </div>
+
+      <div class="card" id="resultCard" style="display:none">
+        <h3>导出结果</h3>
+        <div class="rlist" id="rlist"></div>
+      </div>
+
+      <div class="tabs" id="bottomTabs">
+        <button class="tab on" data-tab="history">导出历史</button>
+        <button class="tab" data-tab="files">已导出文件</button>
+      </div>
+
+      <div class="card" id="historyCard">
+        <div id="historyList"><p style="font-size:13px;color:var(--t3)">暂无导出记录</p></div>
+      </div>
+
+      <div class="card" id="filesCard" style="display:none">
+        <div id="filesList" class="files-grid"><p style="font-size:13px;color:var(--t3)">加载中...</p></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const ITEM_H = 56;
+const BUFFER = 8;
+
+let allContacts = [];
+let filtered = [];
+let selected = new Set();
+let curFilter = 'all';
+let curSearch = '';
+let searchTimer = null;
+let exporting = false;
+
+const $ = id => document.getElementById(id);
+const vscroll = $('vscroll');
+const vspacer = $('vspacer');
+const vitems = $('vitems');
+let isRendering = false;
+
+function toast(msg, type='ok') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  $('toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+async function loadContacts() {
+  try {
+    const r = await fetch('/api/contacts');
+    const d = await r.json();
+    allContacts = d.contacts || [];
+    updateStats();
+    applyFilter();
+    toast(`已加载 ${allContacts.length} 个联系人`);
+  } catch(e) {
+    $('sbStat').textContent = '加载失败';
+    toast('联系人加载失败，请检查服务', 'err');
+  }
+}
+
+function updateStats() {
+  const g = allContacts.filter(c => c.is_group).length;
+  const u = allContacts.length - g;
+  $('sbStat').textContent = `${allContacts.length} 个联系人 · ${g} 个群聊`;
+
+  document.querySelectorAll('.ftab').forEach(t => {
+    const f = t.dataset.f;
+    const cnt = f === 'group' ? g : f === 'user' ? u : allContacts.length;
+    const base = f === 'all' ? '全部' : f === 'user' ? '联系人' : '群聊';
+    t.textContent = base;
+  });
+}
+
+function applyFilter() {
+  const q = curSearch.toLowerCase();
+  filtered = allContacts.filter(c => {
+    if (curFilter === 'user' && c.is_group) return false;
+    if (curFilter === 'group' && !c.is_group) return false;
+    if (q) return c.name.toLowerCase().includes(q) || c.remark.toLowerCase().includes(q) || c.username.toLowerCase().includes(q);
+    return true;
+  });
+  renderVirtual();
+}
+
+function renderVirtual() {
+  if (isRendering || filtered.length === 0) return;
+  isRendering = true;
+
+  const scrollTop = vscroll.scrollTop;
+  const viewH = vscroll.clientHeight;
+  const totalH = filtered.length * ITEM_H;
+
+  let start = Math.floor(scrollTop / ITEM_H) - BUFFER;
+  start = Math.max(0, start);
+  let end = Math.ceil((scrollTop + viewH) / ITEM_H) + BUFFER;
+  end = Math.min(filtered.length, end);
+
+  const frag = document.createDocumentFragment();
+  for (let i = start; i < end; i++) {
+    frag.appendChild(renderItem(filtered[i], i));
+  }
+
+  vspacer.style.height = totalH + 'px';
+  vitems.style.transform = `translateY(${start * ITEM_H}px)`;
+  vitems.innerHTML = '';
+  vitems.appendChild(frag);
+
+  isRendering = false;
+}
+
+function renderItem(c, idx) {
+  const isSel = selected.has(c.name);
+  const div = document.createElement('div');
+  div.className = 'ci' + (isSel ? ' sel' : '');
+  div.dataset.idx = idx;
+
+  const initial = c.name.charAt(0);
+  const avClass = c.is_group ? 'grp' : 'usr';
+  const icon = c.is_group ? '👥' : '';
+  const sub = c.remark && c.remark !== c.name ? `<div class="ci-sub">${esc(c.remark)}</div>` : '';
+
+  div.innerHTML = `
+    <div class="ci-av ${avClass}">${initial}</div>
+    <div class="ci-body">
+      <div class="ci-name">${icon} ${esc(c.name)}</div>
+      ${sub}
+    </div>
+    <div class="ci-chk"></div>
+  `;
+
+  div.addEventListener('click', () => toggleSel(c.name));
+  return div;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleSel(name) {
+  if (selected.has(name)) {
+    selected.delete(name);
+  } else {
+    selected.add(name);
+  }
+  renderVirtual();
+  updateSelPanel();
+}
+
+function toggleSelectAll() {
+  const visible = filtered.map(c => c.name);
+  const allSelected = visible.every(n => selected.has(n));
+  if (allSelected) {
+    visible.forEach(n => selected.delete(n));
+  } else {
+    visible.forEach(n => selected.add(n));
+  }
+  renderVirtual();
+  updateSelPanel();
+}
+
+function clearSel() {
+  selected.clear();
+  renderVirtual();
+  updateSelPanel();
+  $('resultCard').style.display = 'none';
+  $('pbar').classList.remove('on');
+  $('ptext').style.display = 'none';
+}
+
+function updateSelPanel() {
+  const empty = $('emptyState');
+  const panel = $('workPanel');
+  const count = $('selCount');
+  const tags = $('selTags');
+
+  if (selected.size === 0) {
+    empty.style.display = 'flex';
+    panel.classList.remove('show');
+    $('topSub').textContent = '选择联系人开始导出';
+    $('selectAllBtn').textContent = '全选';
+    return;
+  }
+
+  empty.style.display = 'none';
+  panel.classList.add('show');
+  count.textContent = selected.size;
+  $('topSub').textContent = `已选择 ${selected.size} 个联系人`;
+  $('selectAllBtn').textContent = '取消全选';
+
+  tags.innerHTML = '';
+  selected.forEach(name => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = `${esc(name)} <span class="x" data-name="${esc(name)}">&times;</span>`;
+    tag.querySelector('.x').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSel(name);
+    });
+    tags.appendChild(tag);
+  });
+
+  loadHistory();
+}
+
+async function startExport() {
+  if (selected.size === 0 || exporting) return;
+
+  exporting = true;
+  const btn = $('exportBtn');
+  const fmt = $('fmtSel').value;
+  const names = Array.from(selected);
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 导出中...';
+
+  $('pbar').classList.add('on');
+  $('pfill').style.width = '0%';
+  $('ptext').style.display = 'block';
+  $('ptext').textContent = `正在导出 0/${names.length}...`;
+  $('resultCard').style.display = 'block';
+  $('rlist').innerHTML = '';
+
+  try {
+    const r = await fetch('/api/export', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({names, format: fmt})
+    });
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'err'); return; }
+    await pollStatus(d.task_id, names.length);
+    toast(`导出完成！共 ${names.length} 个联系人`);
+  } catch(e) {
+    toast('导出失败: ' + e.message, 'err');
+  } finally {
+    exporting = false;
+    btn.disabled = false;
+    btn.innerHTML = '开始导出';
+  }
+}
+
+async function pollStatus(taskId, total) {
+  let done = false;
+  while (!done) {
+    await new Promise(r => setTimeout(r, 400));
+    const r = await fetch(`/api/export_status/${taskId}`);
+    const d = await r.json();
+    done = d.done;
+
+    const completed = d.completed || 0;
+    const pct = total > 0 ? (completed / total * 100) : 0;
+    $('pfill').style.width = pct + '%';
+    $('ptext').textContent = `正在导出 ${completed}/${total}...`;
+
+    renderResults(d.results || []);
+  }
+  $('pfill').style.width = '100%';
+  $('ptext').textContent = '全部完成';
+  setTimeout(() => { $('pbar').classList.remove('on'); $('ptext').style.display = 'none'; }, 2000);
+  loadHistory();
+  loadFiles();
+}
+
+function renderResults(results) {
+  const list = $('rlist');
+  list.innerHTML = results.map(r => {
+    const dotCls = r.status === 'done' ? 'ok' : r.status === 'error' ? 'err' : 'run';
+    const statusTxt = r.status === 'done' ? '完成' : r.status === 'error' ? '失败' : '导出中...';
+    const metaParts = [statusTxt];
+    if (r.message_count) metaParts.push(`${r.message_count} 条消息`);
+
+    const downloads = (r.files || []).map(f => {
+      const icon = f.endsWith('.html') ? '📄' : '📋';
+      const label = f.endsWith('.html') ? 'HTML' : 'JSON';
+      return `<a class="dl-btn" href="/api/download/${encodeURIComponent(f)}" download>${icon} ${label}</a>`;
+    }).join('');
+
+    const errLine = r.error ? `<div class="ri-err">${esc(r.error)}</div>` : '';
+
+    return `<div class="ri">
+      <div class="ri-left">
+        <div class="ri-dot ${dotCls}"></div>
+        <div class="ri-info">
+          <div class="ri-name">${esc(r.name)}</div>
+          <div class="ri-meta">${metaParts.join(' · ')}</div>
+          ${errLine}
+        </div>
+      </div>
+      <div class="ri-acts">${r.status === 'done' ? downloads : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadHistory() {
+  try {
+    const r = await fetch('/api/history');
+    const d = await r.json();
+    const list = $('historyList');
+    if (!d.history || d.history.length === 0) {
+      list.innerHTML = '<p style="font-size:13px;color:var(--t3)">暂无导出记录</p>';
+      return;
+    }
+    list.innerHTML = d.history.reverse().map(h => {
+      const chips = h.results.map(r => {
+        const cls = r.status === 'done' ? '' : ' err';
+        return `<span class="hr-chip${cls}">${esc(r.name)}${r.message_count ? ` (${r.message_count}条)` : ''}</span>`;
+      }).join('');
+      return `<div class="history-item">
+        <div class="history-head">
+          <span class="history-time">${h.timestamp}</span>
+          <span class="history-fmt">${h.format.toUpperCase()}</span>
+        </div>
+        <div class="history-results">${chips}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function loadFiles() {
+  try {
+    const r = await fetch('/api/files');
+    const d = await r.json();
+    const list = $('filesList');
+    if (!d.files || d.files.length === 0) {
+      list.innerHTML = '<p style="font-size:13px;color:var(--t3)">暂无导出文件</p>';
+      return;
+    }
+    list.innerHTML = d.files.map(f => {
+      const icon = f.name.endsWith('.html') ? '📄' : '📋';
+      const sizeStr = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : (f.size / 1024).toFixed(0) + ' KB';
+      return `<div class="fi">
+        <div class="fi-icon">${icon}</div>
+        <div class="fi-body">
+          <div class="fi-name">${esc(f.name)}</div>
+          <div class="fi-meta">${sizeStr} · ${f.modified}</div>
+        </div>
+        <a class="fi-dl" href="/api/download/${encodeURIComponent(f.name)}" download>下载</a>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+function clearSearch() {
+  $('searchInput').value = '';
+  curSearch = '';
+  $('searchClear').style.display = 'none';
+  applyFilter();
+}
+
+const onSearchInput = debounce(() => {
+  curSearch = $('searchInput').value.trim();
+  $('searchClear').style.display = curSearch ? 'block' : 'none';
+  applyFilter();
+}, 200);
+
+$('searchInput').addEventListener('input', onSearchInput);
+
+document.querySelectorAll('.ftab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.ftab').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    curFilter = t.dataset.f;
+    applyFilter();
+  });
+});
+
+document.querySelectorAll('#bottomTabs .tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('#bottomTabs .tab').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    const tab = t.dataset.tab;
+    $('historyCard').style.display = tab === 'history' ? 'block' : 'none';
+    $('filesCard').style.display = tab === 'files' ? 'block' : 'none';
+    if (tab === 'files') loadFiles();
+  });
+});
+
+let scrollRAF = null;
+vscroll.addEventListener('scroll', () => {
+  if (scrollRAF) cancelAnimationFrame(scrollRAF);
+  scrollRAF = requestAnimationFrame(() => {
+    if (!isRendering) renderVirtual();
+  });
+}, {passive: true});
+
+window.addEventListener('resize', debounce(renderVirtual, 100));
+
+loadContacts();
+</script>
+</body>
+</html>

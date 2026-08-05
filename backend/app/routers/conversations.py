@@ -1,0 +1,133 @@
+"""对话历史路由"""
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
+
+from app.core.database import get_db
+from app.models.conversation import Conversation, Message
+from app.schemas.conversation import (
+    ConversationOut, ConversationDetail, MessageOut,
+    CreateConversationRequest, UpdateConversationRequest, ReorderRequest,
+)
+
+router = APIRouter()
+
+
+@router.get("/conversations", response_model=list[ConversationOut])
+async def list_conversations(db: Session = Depends(get_db)):
+    """获取所有对话（按 position 排序）"""
+    convs = db.query(Conversation).order_by(Conversation.position.asc()).all()
+    result = []
+    for c in convs:
+        msgs = db.query(Message).filter(Message.conversation_id == c.id).all()
+        last_msg = msgs[-1].content[:80] if msgs else ""
+        result.append(ConversationOut(
+            id=c.id, title=c.title or "新对话", position=c.position or 0,
+            created_at=c.created_at or "", updated_at=c.updated_at or "",
+            last_message=last_msg, message_count=len(msgs),
+        ))
+    return result
+
+
+@router.post("/conversations", response_model=ConversationOut)
+async def create_conversation(req: CreateConversationRequest, db: Session = Depends(get_db)):
+    """创建新对话"""
+    max_pos = db.query(Conversation.position).order_by(desc(Conversation.position)).first()
+    next_pos = (max_pos[0] + 1 if max_pos and max_pos[0] is not None else 0)
+
+    conv = Conversation(title=req.title, position=next_pos)
+    db.add(conv)
+    db.commit()
+    db.refresh(conv)
+    return ConversationOut(
+        id=conv.id, title=conv.title, position=conv.position,
+        created_at=conv.created_at or "", updated_at=conv.updated_at or "",
+    )
+
+
+@router.get("/conversations/{conv_id}", response_model=ConversationDetail)
+async def get_conversation(conv_id: int, db: Session = Depends(get_db)):
+    """获取对话详情（含所有消息）"""
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+
+    msgs = db.query(Message).filter(Message.conversation_id == conv_id).order_by(Message.id.asc()).all()
+    return ConversationDetail(
+        id=conv.id, title=conv.title, position=conv.position or 0,
+        messages=[MessageOut(
+            id=m.id, role=m.role, content=m.content or "", reasoning=m.reasoning or "",
+            message_type=m.message_type or "chat", meta_json=m.meta_json or "{}",
+            raw_request=m.raw_request or "", raw_response=m.raw_response or "",
+            created_at=m.created_at or "",
+        ) for m in msgs],
+    )
+
+
+@router.patch("/conversations/{conv_id}", response_model=ConversationOut)
+async def update_conversation(conv_id: int, req: UpdateConversationRequest, db: Session = Depends(get_db)):
+    """更新对话标题或位置"""
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+
+    if req.title is not None:
+        conv.title = req.title
+    if req.position is not None:
+        conv.position = req.position
+    conv.updated_at = datetime.now().isoformat()
+    db.commit()
+    db.refresh(conv)
+    return ConversationOut(
+        id=conv.id, title=conv.title, position=conv.position or 0,
+        created_at=conv.created_at or "", updated_at=conv.updated_at or "",
+    )
+
+
+@router.delete("/conversations/{conv_id}")
+async def delete_conversation(conv_id: int, db: Session = Depends(get_db)):
+    """删除对话及其所有消息"""
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+
+    db.query(Message).filter(Message.conversation_id == conv_id).delete()
+    db.delete(conv)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/conversations/reorder")
+async def reorder_conversations(req: ReorderRequest, db: Session = Depends(get_db)):
+    """批量重新排序对话"""
+    for idx, conv_id in enumerate(req.ordered_ids):
+        conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+        if conv:
+            conv.position = idx
+    db.commit()
+    return {"success": True}
+
+
+def save_message(db: Session, conv_id: int, role: str, content: str,
+                 reasoning: str = "", message_type: str = "chat",
+                 meta_json: str = "{}", raw_request: str = "", raw_response: str = "") -> Message:
+    """保存单条消息到对话历史"""
+    msg = Message(
+        conversation_id=conv_id, role=role, content=content,
+        reasoning=reasoning, message_type=message_type,
+        meta_json=meta_json, raw_request=raw_request, raw_response=raw_response,
+    )
+    db.add(msg)
+
+    # 更新对话的 updated_at
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if conv:
+        conv.updated_at = datetime.now().isoformat()
+        # 第一条用户消息自动设标题
+        if role == "user" and conv.title in ("新对话", "", None) and content:
+            conv.title = content[:30]
+
+    db.commit()
+    db.refresh(msg)
+    return msg

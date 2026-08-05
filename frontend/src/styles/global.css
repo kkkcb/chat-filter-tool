@@ -1,0 +1,48 @@
+@import './variables.css';
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family:var(--font);
+  background:var(--bg-app);
+  color:var(--text);
+  height:100vh;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  font-weight:400;
+}
+
+#root { height:100vh; }
+
+/* 滚动条 */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border-dark); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
+
+/* 动效基础 */
+.fade-in { animation:fadeInUp var(--duration) var(--ease); }
+@keyframes fadeInUp {
+  from { opacity:0; transform:translateY(10px); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+.slide-in { animation:slideIn var(--duration) var(--ease); }
+@keyframes slideIn {
+  from { opacity:0; transform:translateX(-12px); }
+  to { opacity:1; transform:translateX(0); }
+}
+
+/* 按钮按压 */
+button { transition:all var(--duration-fast) var(--ease); }
+button:active { transform:scale(.97); }
+
+/* 输入框聚焦 */
+input:focus, textarea:focus { outline:none; }
+
+/* 选中文本 */
+::selection { background:var(--accent-glow); color:var(--accent-dark); }
+
+@media (prefers-reduced-motion:reduce) {
+  * { animation:none !important; transition:none !important; }
+}
