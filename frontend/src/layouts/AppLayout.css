@@ -1,0 +1,2 @@
+.app-layout { display:flex; height:100vh; }
+.main-area { flex:1; height:100vh; overflow:hidden; display:flex; flex-direction:column; }

@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+httpx
+sqlalchemy>=2.0
+pydantic-settings
+python-frontmatter
+python-multipart
+beautifulsoup4
+lxml

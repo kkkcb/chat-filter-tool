@@ -1,0 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  /* 配色 — 暖橙系，告别蓝紫 */
+  --accent:#e8553a;
+  --accent-dark:#c2410c;
+  --accent-light:#fff1ec;
+  --accent-glow:rgba(232,85,58,.12);
+
+  /* 背景层 */
+  --bg-app:#f8f7f5;
+  --bg-card:#ffffff;
+  --bg-muted:#f2f0ed;
+  --bg-hover:#edeae5;
+
+  /* 侧边栏 — 暖黑 */
+  --sidebar-bg:#1a1715;
+  --sidebar-hover:#2a2520;
+  --sidebar-active:var(--accent);
+
+  /* 文本 */
+  --text:#1a1715;
+  --text-secondary:#57534e;
+  --text-muted:#a8a29e;
+  --text-light:#c7c2bc;
+  --text-on-dark:#f5f5f4;
+
+  /* 边框 */
+  --border:#e7e5e4;
+  --border-dark:#d6d3d2;
+
+  /* 语义色 */
+  --success:#3dd68c;
+  --warning:#f59e0b;
+  --danger:#ef4444;
+
+  /* 圆角 */
+  --radius:8px;
+  --radius-sm:5px;
+  --radius-lg:12px;
+
+  /* 字体 */
+  --font:'Noto Sans SC',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+
+  /* 阴影 */
+  --shadow-sm:0 1px 2px rgba(26,23,21,.04);
+  --shadow-md:0 4px 12px rgba(26,23,21,.06);
+  --shadow-lg:0 8px 24px rgba(26,23,21,.08);
+
+  /* 动效 */
+  --ease:cubic-bezier(.22,1,.36,1);
+  --duration-fast:.15s;
+  --duration:.25s;
+
+  /* 兼容别名 — 旧代码平滑迁移 */
+  --card-bg:var(--bg-card);
+  --mono:var(--font-mono);
+}
