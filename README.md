@@ -157,11 +157,48 @@ Get-ChildItem "$env:USERPROFILE\Documents\xwechat_files" -Directory | Select-Obj
 
 ### 3. 微信导出 `all_keys.json`（密钥文件）
 
-**此文件不含在仓库中，需自行创建。**
+**此文件不含在仓库中，需自行提取。**
 
 位置：`wechat-export/all_keys.json`
 
-格式：
+> **密钥是每个电脑唯一的**，绑定于当前 Windows 账户 + 微信登录账号 + 微信安装。换电脑、重装微信、换账号都需要重新提取。
+
+#### 提取方法
+
+需要使用 [wechat-decrypt](https://github.com/) 项目中的密钥提取工具。
+
+**前提条件**：
+- 微信 4.x（Weixin.exe）正在运行并已登录
+- Python 3.10+ 已安装 pycryptodome（`pip install pycryptodome`）
+- **管理员权限**运行 PowerShell（读取进程内存需要）
+
+**操作步骤**：
+
+```powershell
+# 1. 获取 wechat-decrypt 项目（如果没有的话）
+#    放到任意目录，比如 C:\微信聊天记录分析\wechat-decrypt\
+
+# 2. 以管理员身份打开 PowerShell
+
+# 3. 运行密钥提取脚本
+cd C:\微信聊天记录分析\wechat-decrypt
+python find_all_keys_windows.py
+```
+
+脚本会自动完成：
+1. 自动检测微信数据目录（不需要手动配路径）
+2. 找到所有 `.db` 文件
+3. 扫描 `Weixin.exe` 进程内存
+4. 提取每个数据库的密钥
+5. 在当前目录生成 `all_keys.json`
+
+**提取完成后**，把文件复制到项目中：
+
+```powershell
+Copy-Item "C:\微信聊天记录分析\wechat-decrypt\all_keys.json" ".\wechat-export\all_keys.json"
+```
+
+**格式参考**：
 
 ```json
 {
@@ -173,8 +210,6 @@ Get-ChildItem "$env:USERPROFILE\Documents\xwechat_files" -Directory | Select-Obj
     }
 }
 ```
-
-> 密钥提取需要使用第三方工具（如 wechat-decrypt），从运行中的 Weixin.exe 进程内存提取。
 
 ---
 
