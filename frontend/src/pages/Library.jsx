@@ -6,6 +6,7 @@ import {
 import { useMaterialStore } from '../stores/materialStore'
 import { renderMarkdown } from '../utils/markdown'
 import { getMaterials, getMaterial, deleteMaterial } from '../api/materials'
+import { toast } from '../components/Toast'
 import './Library.css'
 import './KnowledgeBase.css'
 
@@ -54,8 +55,9 @@ export default function Library() {
       setExpandedId(null)
       await loadMaterials()
       fetchStats()
+      toast(`已删除「${material.title.slice(0, 20)}」`, 'success')
     } catch {
-      window.alert('删除失败')
+      toast('删除失败，请重试', 'error')
     }
   }, [loadMaterials, fetchStats])
 
@@ -70,9 +72,9 @@ export default function Library() {
 
   const handleCopyLink = useCallback((url) => {
     if (!url) return
-    navigator.clipboard.writeText(url).then(() => {
-      // 可以加 toast 提示
-    }).catch(() => {})
+    navigator.clipboard.writeText(url)
+      .then(() => toast('链接已复制', 'success'))
+      .catch(() => toast('复制失败', 'error'))
     setContextMenu(null)
   }, [])
 
@@ -103,7 +105,15 @@ export default function Library() {
       <div className="lib-main">
         <div className="lib-materials">
           {loadingMats ? (
-            <div className="lib-loading">加载中...</div>
+            <div className="lib-skeleton" aria-busy="true">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="skel-card">
+                  <div className="skel-line skel-w60" />
+                  <div className="skel-line skel-w90" />
+                  <div className="skel-line skel-w40" />
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <div className="lib-empty-list">
               <Inbox size={40} strokeWidth={1.5} />

@@ -38,6 +38,7 @@
 .lib-group-count { font-size:11px; color:var(--text-muted); background:var(--bg-muted); padding:1px 8px; border-radius:10px; }
 .lib-card-list { display:flex; flex-direction:column; gap:8px; }
 
+.lib-skeleton { padding-top:4px; }
 .lib-loading { text-align:center; padding:60px 20px; color:var(--text-muted); font-size:14px; }
 .lib-empty-list { text-align:center; padding:60px 20px; color:var(--text-light); display:flex; flex-direction:column; align-items:center; gap:4px; }
 .lib-empty-list svg { opacity:.4; }

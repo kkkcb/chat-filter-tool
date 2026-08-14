@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# UI 截图验证脚本产物（scripts/ui-screenshot.mjs）
+screenshots/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -112,6 +112,21 @@
 
 .wx-contact-list { flex:1; overflow-y:auto; padding:6px; }
 
+/* === 联系人加载骨架屏 === */
+.wx-contact-skeleton { padding:4px 6px; }
+.wx-skel-row {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 10px; margin-bottom:2px;
+}
+.wx-skel-avatar {
+  width:28px; height:28px; border-radius:var(--radius-sm); flex-shrink:0;
+  background:linear-gradient(90deg, var(--bg-muted) 25%, var(--bg-hover) 50%, var(--bg-muted) 75%);
+  background-size:200% 100%;
+  animation:shimmer 1.4s ease-in-out infinite;
+}
+.wx-skel-lines { flex:1; display:flex; flex-direction:column; gap:7px; }
+.wx-skel-lines .skel-line { height:10px; margin-bottom:0; }
+
 /* 联系人项（套用 conv-item 模式） */
 .wx-contact-item {
   display:flex; align-items:center; gap:8px;

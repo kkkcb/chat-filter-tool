@@ -39,6 +39,13 @@
 .nav-item.active {
   background:var(--sidebar-active); color:#fff; font-weight:600;
 }
+/* active 左侧指示条（与子项样式呼应） */
+.nav-item.active::before {
+  content:''; position:absolute; left:-10px; top:50%; transform:translateY(-50%);
+  width:3px; height:18px; background:#7dd3fc; border-radius:2px;
+  animation:navIndicatorIn var(--duration) var(--ease);
+}
+@keyframes navIndicatorIn { from { transform:translateY(-50%) scaleY(0); } to { transform:translateY(-50%) scaleY(1); } }
 .nav-item .icon { width:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 
 /* === 分组展开 === */

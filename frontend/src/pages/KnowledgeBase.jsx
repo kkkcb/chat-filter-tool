@@ -3,7 +3,7 @@ import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
   Check, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
-  Plus, Trash2, Pencil, GripVertical, History, Code2,
+  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
 import { useVisionStore } from '../stores/visionStore'
@@ -12,6 +12,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown } from '../utils/markdown'
+import { toast } from '../components/Toast'
 import './KnowledgeBase.css'
 
 const VISION_MODES = [
@@ -36,8 +37,22 @@ export default function KnowledgeBase() {
 
   useEffect(() => { loadConversations() }, [loadConversations])
 
-  const scrollToBottom = () => {
-    if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+
+  // 距底部超过 300px 时显示「回到底部」按钮
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesRef.current
+    if (!el) return
+    setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 300)
+  }, [])
+
+  const scrollToBottom = (smooth = false) => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTo({
+        top: messagesRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      })
+    }
   }
   useEffect(() => { scrollToBottom() }, [messages])
 
@@ -70,7 +85,7 @@ export default function KnowledgeBase() {
 
   const handleImageFile = useCallback(async (file) => {
     if (!file.type.startsWith('image/')) return
-    if (file.size > 10 * 1024 * 1024) { alert('图片不能超过 10MB'); return }
+    if (file.size > 10 * 1024 * 1024) { toast('图片不能超过 10MB', 'error'); return }
     const reader = new FileReader()
     reader.onload = (e) => setImage(e.target.result)
     reader.readAsDataURL(file)
@@ -147,7 +162,7 @@ export default function KnowledgeBase() {
           </button>
         </div>
 
-        <div className="chat-page-messages" ref={messagesRef}>
+        <div className="chat-page-messages" ref={messagesRef} onScroll={handleMessagesScroll}>
           {!hasChat ? (
             <div className="chat-welcome">
               <Sparkles size={40} strokeWidth={1.5} />
@@ -175,6 +190,13 @@ export default function KnowledgeBase() {
             ))
           )}
         </div>
+
+        {/* 回到底部浮动按钮 */}
+        {showScrollBtn && hasChat && (
+          <button className="scroll-bottom-btn" onClick={() => scrollToBottom(true)} title="回到底部">
+            <ArrowDown size={16} strokeWidth={2.2} />
+          </button>
+        )}
 
         <div className="chat-page-input">
           {selectedImage && (
@@ -213,8 +235,8 @@ export default function KnowledgeBase() {
               onChange={(e) => { setInput(e.target.value); resize() }}
               onKeyDown={handleKeyDown}
             />
-            <button className="chat-send" disabled={isSending} onClick={handleSend}>
-              <Send size={16} strokeWidth={2.2} />
+            <button className="chat-send" disabled={isSending} onClick={handleSend} title="发送">
+              {isSending ? <Loader2 size={16} strokeWidth={2.2} className="spin-icon" /> : <Send size={16} strokeWidth={2.2} />}
             </button>
             {isSending && (
               <button className="chat-abort" onClick={abort} title="中止">

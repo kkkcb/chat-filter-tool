@@ -4,6 +4,7 @@ import KnowledgeBase from '../pages/KnowledgeBase'
 import Library from '../pages/Library'
 import CreativeStudio from '../pages/CreativeStudio'
 import WeChatExport from '../pages/WeChatExport'
+import ToastHost from '../components/Toast'
 import './AppLayout.css'
 
 export default function AppLayout() {
@@ -13,11 +14,15 @@ export default function AppLayout() {
     <div className="app-layout">
       <Sidebar currentView={view} onSwitch={setView} />
       <main className="main-area">
-        {view === 'chat' && <KnowledgeBase />}
-        {view === 'library' && <Library />}
-        {view === 'studio' && <CreativeStudio />}
-        {view === 'wechat' && <WeChatExport />}
+        {/* key={view} 触发切换时的入场过渡动画 */}
+        <div key={view} className="view-transition">
+          {view === 'chat' && <KnowledgeBase />}
+          {view === 'library' && <Library />}
+          {view === 'studio' && <CreativeStudio />}
+          {view === 'wechat' && <WeChatExport />}
+        </div>
       </main>
+      <ToastHost />
     </div>
   )
 }

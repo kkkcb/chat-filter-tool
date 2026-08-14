@@ -108,7 +108,17 @@ export default function ContactList() {
 
       <div className="wx-contact-list">
         {loadingContacts ? (
-          <div className="wx-empty-sm">加载中...</div>
+          <div className="wx-contact-skeleton" aria-busy="true">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="wx-skel-row">
+                <span className="wx-skel-avatar" />
+                <div className="wx-skel-lines">
+                  <span className="skel-line skel-w60" />
+                  <span className="skel-line skel-w40" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : showGuide ? (
           <div className="wx-search-guide">
             <SearchIcon size={32} strokeWidth={1.5} />
