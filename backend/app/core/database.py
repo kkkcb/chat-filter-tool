@@ -24,6 +24,14 @@ def get_db():
 
 
 def init_db():
-    """创建所有表"""
-    from app.models import material, conversation, inspiration  # noqa: F401
+    """创建所有表并重建全文索引"""
+    from app.models import material, conversation  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+    # 重建 FTS5 索引（捕获迁移/手工改动；失败则回退关键词扫描）
+    from app.core import fts
+    try:
+        with SessionLocal() as db:
+            fts.rebuild(db)
+    except Exception as e:
+        print(f"[FTS] 索引初始化失败，检索将回退关键词扫描: {e}")

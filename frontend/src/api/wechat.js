@@ -82,12 +82,16 @@ export async function getFiles() {
   return resp.json()
 }
 
-/** 轮询导出直到完成，返回最终状态 */
-export async function pollExport(taskId, onProgress, interval = 800) {
+/** 轮询导出直到完成，返回最终状态；超过 timeoutMs 抛错，防止无限轮询 */
+export async function pollExport(taskId, onProgress, interval = 800, timeoutMs = 10 * 60 * 1000) {
+  const deadline = Date.now() + timeoutMs
   while (true) {
     const status = await getExportStatus(taskId)
     onProgress?.(status)
     if (status.done) return status
+    if (Date.now() > deadline) {
+      throw new Error(`导出超时（超过 ${Math.round(timeoutMs / 60000)} 分钟），请检查微信导出服务`)
+    }
     await new Promise(r => setTimeout(r, interval))
   }
 }

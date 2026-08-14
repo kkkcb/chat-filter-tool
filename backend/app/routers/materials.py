@@ -3,12 +3,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core import fts
 from app.services.material_service import MaterialService
 from app.services.llm_service import llm_service
 from app.services.clip_service import clip_service
 from app.schemas.material import MaterialUpdate
+from app.config import settings
 
 router = APIRouter()
+
+
+@router.get("/categories")
+async def categories():
+    """可用分类列表 — 前端统一从此接口获取，避免多处硬编码"""
+    return {"categories": settings.categories}
 
 
 @router.get("/materials")
@@ -95,6 +103,7 @@ async def retranslate_material(material_id: int, db: Session = Depends(get_db)):
 
         db.commit()
         db.refresh(m)
+        fts.upsert(db, m)
 
     svc = MaterialService(db)
     return svc.get(material_id)
@@ -120,6 +129,7 @@ async def delete_material(material_id: int, db: Session = Depends(get_db)):
     # 删除数据库记录
     db.delete(m)
     db.commit()
+    fts.remove(db, material_id)
 
     return {"success": True, "message": "已删除"}
 

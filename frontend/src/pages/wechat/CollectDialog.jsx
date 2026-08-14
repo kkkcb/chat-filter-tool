@@ -1,12 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Sparkles, Loader2, Check, AlertCircle } from 'lucide-react'
 import { confirmSave } from '../../api/chat'
+import { getCategories } from '../../api/materials'
 import { useMaterialStore } from '../../stores/materialStore'
 
-const CATEGORIES = [
-  'AI概念与原理', 'AI工具与产品', 'AI科普灵感',
-  'GitHub项目', '行业资讯', '写作技巧', '待分类',
-]
+// 后端不可用时的兜底分类
+const FALLBACK_CATEGORIES = ['待分类']
 
 const TYPE_LABELS = {
   image: '图片', voice: '语音', video: '视频', sticker: '表情',
@@ -63,9 +62,20 @@ export default function CollectDialog({ contact, selectedMsgs, messages, onClose
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [category, setCategory] = useState('AI科普灵感')
+  const [categories, setCategories] = useState(FALLBACK_CATEGORIES)
   const [tagsInput, setTagsInput] = useState('')
   const [state, setState] = useState('idle')  // idle | saving | done | error
   const [error, setError] = useState('')
+
+  // 分类列表由后端统一下发
+  useEffect(() => {
+    getCategories()
+      .then(data => {
+        const cats = data.categories || []
+        if (cats.length) setCategories(cats)
+      })
+      .catch(() => {})
+  }, [])
 
   const msgList = messages.filter((_, i) => selectedMsgs.has(i))
   const hasTextContent = msgList.some(m => m.content)
@@ -144,7 +154,7 @@ export default function CollectDialog({ contact, selectedMsgs, messages, onClose
               <div className="wx-form-row">
                 <label>分类</label>
                 <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="wx-form-row">

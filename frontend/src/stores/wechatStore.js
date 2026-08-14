@@ -256,8 +256,13 @@ export const useWeChatStore = create((set, get) => ({
   },
 
   reset: () => set({
-    online: null, stats: null, contacts: [], query: '', typeFilter: 'all',
-    selectedNames: new Set(), activeContact: null, messages: [], selectedMsgs: new Set(),
-    exportTask: null, exporting: false, history: [], files: [],
+    online: null, stats: null, checking: false,
+    contacts: [], query: '', typeFilter: 'all', loadingContacts: false,
+    recentFilter: 30, hasSearched: false,
+    selectedNames: new Set(), activeContact: null,
+    messages: [], loadingMessages: false, selectedMsgs: new Set(),
+    exportFormat: 'both', exportTask: null, exporting: false,
+    previewProgress: null, contextMenu: null,
+    history: [], files: [], loadingHistory: false,
   }),
 }))

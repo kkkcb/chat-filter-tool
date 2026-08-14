@@ -45,21 +45,20 @@ export default function KnowledgeBase() {
   const handleSelectConv = async (id) => {
     clearMessages()
     const detail = await selectConversation(id)
-    if (detail?.messages) {
-      // 加载历史消息到 chat store
-      detail.messages.forEach(m => {
-        useChatStore.setState(state => ({
-          messages: [...state.messages, {
-            role: m.role,
-            content: m.content,
-            reasoning: m.reasoning,
-            messageType: m.message_type,
-            rawRequest: m.raw_request,
-            rawResponse: m.raw_response,
-            messageId: m.id,
-          }],
-        }))
-      })
+    if (detail?.messages?.length) {
+      // 一次性写入全部历史消息，避免逐条 setState 触发多次渲染
+      useChatStore.setState(state => ({
+        messages: detail.messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          reasoning: m.reasoning,
+          messageType: m.message_type,
+          rawRequest: m.raw_request,
+          rawResponse: m.raw_response,
+          messageId: m.id,
+        })),
+      }))
     }
   }
 
@@ -168,7 +167,7 @@ export default function KnowledgeBase() {
             </div>
           ) : (
             messages.map((msg, i) => (
-              <MessageBubble key={i} msg={msg} index={i}
+              <MessageBubble key={msg.id ?? `idx-${i}`} msg={msg} index={i}
                 onConfirmSave={confirmSave} onDismissSave={dismissSave}
                 onRetry={retry}
                 onShowDetail={(rawReq, rawResp) => setDetailModal({ rawRequest: rawReq, rawResponse: rawResp })}

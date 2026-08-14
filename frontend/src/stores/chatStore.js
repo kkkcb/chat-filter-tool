@@ -1,13 +1,18 @@
 import { create } from 'zustand'
 import { sendChat, confirmSave } from '../api/chat'
 
-const API_BASE = 'http://localhost:8000'
+// 消息唯一 id（比数组下标更适合作为 React key）
+let nextMsgId = 1
+
+// 流式渲染节流间隔（ms）：chunk 很密集时降低 setState 频率，结束时统一补全
+const RENDER_INTERVAL = 100
 
 export const useChatStore = create((set, get) => ({
   messages: [],
   isSending: false,
   abortController: null,
   deepThinking: false,
+  lastSendParams: null, // 供 retry 复用（保留 conversationId/mode）
 
   toggleDeepThinking: () => set(state => ({ deepThinking: !state.deepThinking })),
 
@@ -16,10 +21,11 @@ export const useChatStore = create((set, get) => ({
 
     const thinking = get().deepThinking
     const abortController = new AbortController()
-    set({ isSending: true, abortController })
+    set({ isSending: true, abortController, lastSendParams: { text, image, mode, conversationId, onComplete } })
 
     // Add user message
     const userMsg = {
+      id: nextMsgId++,
       role: 'user',
       content: image && !text ? getModeLabel(mode) : text,
       image: image || null,
@@ -28,6 +34,7 @@ export const useChatStore = create((set, get) => ({
 
     // Add assistant placeholder with streaming state
     const assistantMsg = {
+      id: nextMsgId++,
       role: 'assistant',
       content: '',
       reasoning: '',
@@ -37,7 +44,8 @@ export const useChatStore = create((set, get) => ({
     set(state => ({ messages: [...state.messages, assistantMsg] }))
 
     try {
-      const resp = await fetch(`${API_BASE}/api/chat/stream`, {
+      // 相对路径走 Vite 代理（开发）/ 同源（生产 build 由后端托管）
+      const resp = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, conversation_id: conversationId || null }),
@@ -52,6 +60,7 @@ export const useChatStore = create((set, get) => ({
       let fullContent = ''
       let fullReasoning = ''
       let msgData = null
+      let lastRender = 0
 
       while (true) {
         const { done, value } = await reader.read()
@@ -74,10 +83,18 @@ export const useChatStore = create((set, get) => ({
               }
             } else if (evt.type === 'reasoning') {
               fullReasoning += evt.data
-              get()._updateLastMsg(set, { reasoning: fullReasoning, typing: false })
+              const now = performance.now()
+              if (now - lastRender > RENDER_INTERVAL) {
+                lastRender = now
+                get()._updateLastMsg(set, { reasoning: fullReasoning, typing: false })
+              }
             } else if (evt.type === 'content') {
               fullContent += evt.data
-              get()._updateLastMsg(set, { content: fullContent, typing: false })
+              const now = performance.now()
+              if (now - lastRender > RENDER_INTERVAL) {
+                lastRender = now
+                get()._updateLastMsg(set, { content: fullContent, typing: false })
+              }
             } else if (evt.type === 'citations') {
               get()._updateLastMsg(set, { citations: evt.data })
             } else if (evt.type === 'error') {
@@ -107,6 +124,7 @@ export const useChatStore = create((set, get) => ({
       get()._updateLastMsg(set, {
         typing: false, streaming: false,
         content: fullContent || msgData?.reply || '（无回复）',
+        reasoning: fullReasoning,
         messageType: msgData?.type,
         rawRequest, rawResponse,
         action: msgData?.action || null,
@@ -138,9 +156,9 @@ export const useChatStore = create((set, get) => ({
     if (abortController) abortController.abort()
   },
 
-  // 重试最后一条消息
+  // 重试最后一条消息（复用发送时的 conversationId/mode，避免新建对话）
   retry: async () => {
-    const { messages } = get()
+    const { messages, lastSendParams } = get()
     // 找最后一条用户消息
     let lastUserIdx = -1
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -152,7 +170,12 @@ export const useChatStore = create((set, get) => ({
     // 删除该用户消息之后的所有消息
     set({ messages: messages.slice(0, lastUserIdx) })
     // 重新发送
-    await get().sendMessage(lastUser.content, lastUser.image, '')
+    await get().sendMessage(
+      lastUser.content, lastUser.image,
+      lastSendParams?.mode || '',
+      lastSendParams?.conversationId || null,
+      lastSendParams?.onComplete,
+    )
   },
 
   _updateLastMsg: (setFn, updates) => {
@@ -208,10 +231,7 @@ export const useChatStore = create((set, get) => ({
     }))
   },
 
-  addAssistantMessage: (content) =>
-    set(state => ({ messages: [...state.messages, { role: 'assistant', content }] })),
-
-  clearMessages: () => set({ messages: [] }),
+  clearMessages: () => set({ messages: [], lastSendParams: null }),
 }))
 
 function getModeLabel(mode) {

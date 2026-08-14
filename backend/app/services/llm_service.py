@@ -14,6 +14,19 @@ class LLMService:
         self.endpoint = settings.glm_endpoint
         self.text_model = settings.glm_model
         self.vision_model = settings.glm_vision_model
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """共享 AsyncClient，复用连接池；意外关闭时自动重建"""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=120)
+        return self._client
+
+    async def aclose(self):
+        """应用退出时释放连接池（见 main.py lifespan）"""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def _call(self, messages, model=None, json_mode=False, temperature=0.7, timeout=60) -> str | None:
         """底层调用方法"""
@@ -27,11 +40,12 @@ class LLMService:
             payload["response_format"] = {"type": "json_object"}
 
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(self.endpoint, headers=headers, json=payload)
-                if resp.status_code == 200:
-                    return resp.json()["choices"][0]["message"]["content"].strip()
-                print(f"[LLM] HTTP {resp.status_code}: {resp.text[:200]}")
+            resp = await self._get_client().post(
+                self.endpoint, headers=headers, json=payload, timeout=timeout
+            )
+            if resp.status_code == 200:
+                return resp.json()["choices"][0]["message"]["content"].strip()
+            print(f"[LLM] HTTP {resp.status_code}: {resp.text[:200]}")
         except Exception as e:
             print(f"[LLM] 调用失败: {e}")
         return None
@@ -60,47 +74,47 @@ class LLMService:
             payload["thinking"] = {"type": "disabled"}
 
         try:
-            async with httpx.AsyncClient(timeout=120) as client:
-                async with client.stream("POST", self.endpoint, headers=headers, json=payload) as resp:
-                    if resp.status_code != 200:
-                        body = await resp.aread()
-                        print(f"[LLM Stream] HTTP {resp.status_code}: {body[:200]}")
-                        yield ("error", f"HTTP {resp.status_code}")
-                        return
+            client = self._get_client()
+            async with client.stream("POST", self.endpoint, headers=headers, json=payload, timeout=120) as resp:
+                if resp.status_code != 200:
+                    body = await resp.aread()
+                    print(f"[LLM Stream] HTTP {resp.status_code}: {body[:200]}")
+                    yield ("error", f"HTTP {resp.status_code}")
+                    return
 
-                    import time as _time
-                    _t0 = _time.time()
-                    _first = True
-                    _count = 0
+                import time as _time
+                _t0 = _time.time()
+                _first = True
+                _count = 0
 
-                    async for line in resp.aiter_lines():
-                        if not line or not line.startswith("data: "):
-                            continue
-                        data_str = line[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data_str)
-                            delta = chunk.get("choices", [{}])[0].get("delta", {})
-                            
-                            if "reasoning_content" in delta and delta["reasoning_content"]:
-                                if _first:
-                                    print(f"[LLM Stream] First reasoning chunk at {_time.time()-_t0:.1f}s")
-                                    _first = False
-                                _count += 1
-                                yield ("reasoning", delta["reasoning_content"])
-                            
-                            if "content" in delta and delta["content"]:
-                                if _first:
-                                    print(f"[LLM Stream] First content chunk at {_time.time()-_t0:.1f}s")
-                                    _first = False
-                                _count += 1
-                                yield ("content", delta["content"])
-                                
-                        except json.JSONDecodeError:
-                            continue
+                async for line in resp.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
 
-                    print(f"[LLM Stream] Done: {_count} chunks in {_time.time()-_t0:.1f}s")
+                        if "reasoning_content" in delta and delta["reasoning_content"]:
+                            if _first:
+                                print(f"[LLM Stream] First reasoning chunk at {_time.time()-_t0:.1f}s")
+                                _first = False
+                            _count += 1
+                            yield ("reasoning", delta["reasoning_content"])
+
+                        if "content" in delta and delta["content"]:
+                            if _first:
+                                print(f"[LLM Stream] First content chunk at {_time.time()-_t0:.1f}s")
+                                _first = False
+                            _count += 1
+                            yield ("content", delta["content"])
+
+                    except json.JSONDecodeError:
+                        continue
+
+                print(f"[LLM Stream] Done: {_count} chunks in {_time.time()-_t0:.1f}s")
         except Exception as e:
             print(f"[LLM Stream] 调用失败: {e}")
             yield ("error", str(e))
@@ -150,19 +164,6 @@ class LLMService:
             parsed["extra_text"] = parsed["bilingual"]
 
         return parsed
-
-    async def chat_with_context(self, question: str, kb_context: str) -> str | None:
-        """基于知识库上下文回答"""
-        system_prompt = (
-            "你是一个AI科普创作助手。用户正在运营AI科普公众号，坚持「一文一概念」系列。\n\n"
-            f"以下是用户已收藏的知识库素材：\n{kb_context}\n\n"
-            "请基于这些素材回答用户的问题。如果与素材相关，可以引用具体内容。"
-            "回答要简洁、有干货，适合中文表达。"
-        )
-        return await self._call([
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question},
-        ])
 
     async def generate_topics(self, kb_context: str) -> list:
         """生成选题建议"""

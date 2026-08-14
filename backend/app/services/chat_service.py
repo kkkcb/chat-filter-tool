@@ -15,12 +15,12 @@ class ChatService:
         self.db = db
         self.material_svc = MaterialService(db)
 
-    async def handle_message(self, message: str, image: str = "", mode: str = "describe") -> dict:
+    async def handle_message(self, message: str, image: str = "", mode: str = "describe", history: list | None = None) -> dict:
         """
         统一入口：
         - 有图片 → 视觉分析
         - 有 URL → 链接处理
-        - 否则 → 知识库对话
+        - 否则 → 知识库对话（history 为多轮对话历史 [{"role","content"}]）
         """
         if image:
             return await self._handle_vision(image, message, mode)
@@ -29,7 +29,7 @@ class ChatService:
         if url_match:
             return await self._handle_link(url_match.group(0))
 
-        return await self._handle_chat(message)
+        return await self._handle_chat(message, history or [])
 
     async def _handle_vision(self, image: str, prompt: str, mode: str) -> dict:
         """图片视觉分析"""
@@ -85,7 +85,7 @@ class ChatService:
             "entry": entry,
         }
 
-    async def handle_message_stream(self, message: str, image: str = "", mode: str = "describe", thinking: bool = False):
+    async def handle_message_stream(self, message: str, image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None):
         """流式版统一入口 — yield (event_type, data_dict)"""
         if image:
             # 图片不支持流式，降级为普通调用
@@ -101,20 +101,15 @@ class ChatService:
             return
 
         # 普通对话走流式
-        async for event in self._handle_chat_stream(message, thinking):
+        async for event in self._handle_chat_stream(message, thinking, history or []):
             yield event
 
-    async def _handle_chat_stream(self, question: str, thinking: bool = False):
-        """流式知识库对话"""
-        rag_context, citations = self.material_svc.build_rag_context(question)
-
+    def _build_messages(self, question: str, rag_context: str, history: list) -> list[dict]:
+        """组装完整 messages：system + 多轮历史 + 当前问题"""
         if not rag_context:
-            messages = [
-                {"role": "system", "content": "你是一个AI科普创作助手，帮助用户运营AI科普公众号。用户知识库暂时没有素材，你可以基于通识回答问题。"},
-                {"role": "user", "content": question},
-            ]
+            system_content = "你是一个AI科普创作助手，帮助用户运营AI科普公众号。请结合用户知识库素材（如有）回答问题。"
         else:
-            system_prompt = (
+            system_content = (
                 "你是一个AI科普创作助手。用户正在运营AI科普公众号，坚持「一文一概念」系列。\n\n"
                 "以下是用户的**知识库**中与问题最相关的素材（按相关度排序）：\n\n"
                 f"{rag_context}\n\n"
@@ -125,10 +120,16 @@ class ChatService:
                 "4. 回答要简洁有干货，适合中文表达\n"
                 "5. 如果用户问的是某个技能/工具/理论，优先从知识库中找到对应素材引用"
             )
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question},
-            ]
+        messages = [{"role": "system", "content": system_content}]
+        # 多轮历史（role/content 均已校验，见路由层 _load_history）
+        messages.extend(history)
+        messages.append({"role": "user", "content": question})
+        return messages
+
+    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None):
+        """流式知识库对话"""
+        rag_context, citations = self.material_svc.build_rag_context(question)
+        messages = self._build_messages(question, rag_context, history or [])
 
         # 发送引用信息
         if citations:
@@ -146,33 +147,12 @@ class ChatService:
 
         yield ("done", {"type": "chat", "reply": full_content})
 
-    async def _handle_chat(self, question: str) -> dict:
+    async def _handle_chat(self, question: str, history: list | None = None) -> dict:
         """知识库对话 — 自动检索相关素材并引用"""
-        # 检索最相关的素材
         rag_context, citations = self.material_svc.build_rag_context(question)
+        messages = self._build_messages(question, rag_context, history or [])
 
-        if not rag_context:
-            # 知识库为空或无匹配
-            reply = await llm_service.chat([
-                {"role": "system", "content": "你是一个AI科普创作助手，帮助用户运营AI科普公众号。用户知识库暂时没有素材，你可以基于通识回答问题。"},
-                {"role": "user", "content": question},
-            ])
-            return {"type": "chat", "reply": reply or "暂时无法回答，请稍后再试。"}
-
-        # 构建 RAG prompt
-        system_prompt = (
-            "你是一个AI科普创作助手。用户正在运营AI科普公众号，坚持「一文一概念」系列。\n\n"
-            "以下是用户的**知识库**中与问题最相关的素材（按相关度排序）：\n\n"
-            f"{rag_context}\n\n"
-            "请基于这些素材回答用户的问题。要求：\n"
-            "1. 回答中**必须引用相关素材**，用 [序号] 标注引用来源\n"
-            "2. 回答末尾列出「参考资料」部分，格式：序号 + 标题 + 链接\n"
-            "3. 如果素材中没有完全匹配的内容，基于素材做合理延伸，并标注哪些是你的推断\n"
-            "4. 回答要简洁有干货，适合中文表达\n"
-            "5. 如果用户问的是某个技能/工具/理论，优先从知识库中找到对应素材引用"
-        )
-
-        reply = await llm_service.chat_with_context(question, system_prompt)
+        reply = await llm_service.chat(messages)
 
         return {
             "type": "chat",

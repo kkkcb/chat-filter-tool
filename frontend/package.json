@@ -5,19 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.5",
-    "typescript": "~6.0.2",
     "vite": "^8.2.0"
   },
   "dependencies": {
     "dompurify": "^3.4.13",
     "lucide-react": "^1.28.0",
     "markdown-it": "^15.0.0",
-    "marked": "^18.0.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zustand": "^5.0.14"

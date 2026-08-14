@@ -9,5 +9,7 @@ export const getMaterial = (id) => request(`/materials/${id}`)
 
 export const getStats = () => request('/stats')
 
+export const getCategories = () => request('/categories')
+
 export const deleteMaterial = (id) =>
   request(`/materials/${id}`, { method: 'DELETE' })

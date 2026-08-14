@@ -15,8 +15,14 @@ from gen_chat_html import json_to_html
 from config import load_config
 
 PORT = 5679
+# 仅监听本机回环地址：服务无鉴权且能读取全部聊天记录，绝不能暴露到局域网
+BIND_HOST = '127.0.0.1'
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chat_exports")
 HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "export_web.html")
+
+# 内存上限：完成的导出任务/历史只保留最近若干条，避免长期运行无限增长
+MAX_EXPORT_TASKS = 50
+MAX_EXPORT_HISTORY = 100
 
 _cfg = load_config()
 CONTACT_CACHE = os.path.join(_cfg["decrypted_dir"], "_monitor_cache", "contact_contact.db")
@@ -105,6 +111,15 @@ def _get_all_contacts():
     return contacts
 
 
+def _trim_export_memory():
+    """裁剪已完成的导出任务和历史，防止内存无限增长"""
+    with export_lock:
+        done_ids = [tid for tid, t in export_tasks.items() if t.get('done')]
+        for tid in done_ids[:-MAX_EXPORT_TASKS]:
+            export_tasks.pop(tid, None)
+        del export_history[:-MAX_EXPORT_HISTORY]
+
+
 def _do_export(task_id, names, fmt):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -143,9 +158,9 @@ def _do_export(task_id, names, fmt):
 
             result['status'] = 'done'
 
-        except SystemExit:
+        except ValueError as e:
             result['status'] = 'error'
-            result['error'] = f'找不到联系人: {name}'
+            result['error'] = str(e) or f'找不到联系人: {name}'
         except Exception as e:
             result['status'] = 'error'
             result['error'] = str(e) or traceback.format_exc()
@@ -162,6 +177,7 @@ def _do_export(task_id, names, fmt):
             'results': [r.copy() for r in export_tasks[task_id]['results']],
             'format': fmt,
         })
+    _trim_export_memory()
 
 
 class ExportHandler(BaseHTTPRequestHandler):
@@ -257,11 +273,17 @@ class ExportHandler(BaseHTTPRequestHandler):
 
         elif path.startswith('/api/download/'):
             filename = urllib.parse.unquote(path.split('/api/download/')[-1])
-            filepath = os.path.join(OUTPUT_DIR, filename)
-            if os.path.exists(filepath):
-                self._send_file(filepath, filename)
-            else:
+            # 防路径穿越：文件名必须是纯文件名（无分隔符、无 ..），且解析后仍在输出目录内
+            if (not filename or filename in ('.', '..')
+                    or '/' in filename or '\\' in filename or ':' in filename):
+                self._send_json({'error': '非法文件名'}, 400)
+                return
+            filepath = os.path.realpath(os.path.join(OUTPUT_DIR, filename))
+            out_root = os.path.realpath(OUTPUT_DIR) + os.sep
+            if not filepath.startswith(out_root) or not os.path.isfile(filepath):
                 self._send_json({'error': '文件不存在'}, 404)
+                return
+            self._send_file(filepath, filename)
 
         elif path == '/api/history':
             with export_lock:
@@ -325,7 +347,7 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    server = ThreadedHTTPServer(('0.0.0.0', PORT), ExportHandler)
+    server = ThreadedHTTPServer((BIND_HOST, PORT), ExportHandler)
     print(f"微信聊天记录导出工具 — http://localhost:{PORT}")
     print(f"输出目录: {OUTPUT_DIR}")
     try:
