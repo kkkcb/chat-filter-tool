@@ -1,6 +1,5 @@
 """对话路由"""
 import json
-from datetime import datetime
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -10,7 +9,7 @@ from app.schemas.chat import ChatRequest, ChatResponse, SaveConfirmRequest, Save
 from app.services.chat_service import ChatService
 from app.services.material_service import MaterialService
 from app.routers.conversations import save_message
-from app.models.conversation import Conversation
+from app.models.conversation import Conversation, Message
 
 router = APIRouter()
 
@@ -20,6 +19,31 @@ SSE_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
+# 回传给模型的历史消息条数（user+assistant 合计）
+HISTORY_LIMIT = 10
+
+
+def _load_history(db: Session, conv_id: int, before_id: int | None = None, limit: int = HISTORY_LIMIT) -> list[dict]:
+    """加载对话历史（时间正序），供多轮对话上下文使用。
+
+    before_id 用于排除当前这条刚保存的用户消息。
+    跳过空消息（如仅图片、链接卡片），避免噪音进入上下文。
+    """
+    q = (
+        db.query(Message)
+        .filter(Message.conversation_id == conv_id)
+        .order_by(Message.id.desc())
+    )
+    if before_id is not None:
+        q = q.filter(Message.id < before_id)
+    msgs = q.limit(limit).all()
+
+    history = []
+    for m in reversed(msgs):
+        if m.role in ("user", "assistant") and (m.content or "").strip():
+            history.append({"role": m.role, "content": m.content})
+    return history
+
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, db: Session = Depends(get_db)):
@@ -27,8 +51,9 @@ async def chat(req: ChatRequest, db: Session = Depends(get_db)):
     if not req.message and not req.image:
         return ChatResponse(type="chat", reply="消息不能为空", success=False)
 
+    history = _load_history(db, req.conversation_id) if req.conversation_id else []
     svc = ChatService(db)
-    result = await svc.handle_message(req.message, req.image, req.mode)
+    result = await svc.handle_message(req.message, req.image, req.mode, history=history)
     return ChatResponse(**result)
 
 
@@ -41,11 +66,10 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
         return StreamingResponse(empty(), media_type="text/event-stream", headers=SSE_HEADERS)
 
     svc = ChatService(db)
-    conv_id = getattr(req, 'conversation_id', None)
+    conv_id = req.conversation_id
 
     # 如果没指定对话 ID，自动创建一个新对话
     if not conv_id:
-        from app.models.conversation import Conversation
         max_pos_q = db.query(Conversation.position).order_by(Conversation.position.desc()).first()
         next_pos = (max_pos_q[0] + 1 if max_pos_q and max_pos_q[0] is not None else 0)
         title = req.message[:30] if req.message else "图片分析"
@@ -55,9 +79,10 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
         db.refresh(conv)
         conv_id = conv.id
 
-    # 保存用户消息
+    # 保存用户消息，并加载此消息之前的历史作为多轮上下文
     user_meta = json.dumps({"image": bool(req.image), "mode": req.mode}, ensure_ascii=False)
     user_msg = save_message(db, conv_id, "user", req.message or "", message_type="chat", meta_json=user_meta)
+    history = _load_history(db, conv_id, before_id=user_msg.id)
 
     # 构建原始请求记录
     raw_request = json.dumps({
@@ -75,7 +100,7 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
             msg_data = None
 
             async for event_type, event_data in svc.handle_message_stream(
-                req.message, req.image, req.mode, req.thinking or False
+                req.message, req.image, req.mode, req.thinking or False, history=history
             ):
                 if isinstance(event_data, (dict, list)):
                     payload_data = event_data

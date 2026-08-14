@@ -13,7 +13,7 @@ Write-Host ""
 
 # 启动后端
 Write-Host "[1/3] 启动 FastAPI 后端 (http://localhost:8000)..." -ForegroundColor Yellow
-$backend = Start-Process -PassThru -NoNewWindow -WorkingDirectory "$ROOT\backend" -FilePath "python" -ArgumentList "run.py"
+$backend = Start-Process -PassThru -NoNewWindow -WorkingDirectory "$ROOT\backend" -FilePath "python" -ArgumentList "run.py", "--reload"
 
 Start-Sleep -Seconds 2
 

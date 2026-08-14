@@ -1,11 +1,12 @@
 """素材服务 — CRUD + 统计，编排 storage + repository"""
 import json
 from datetime import datetime
-from collections import Counter
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.material import Material
+from app.core import fts
 from app.core.storage import save_markdown, read_markdown
 from app.services.llm_service import llm_service
 from app.services.clip_service import clip_service
@@ -38,13 +39,22 @@ class MaterialService:
         return result
 
     def stats(self) -> dict:
-        """统计数据"""
-        materials = self.db.query(Material).all()
-        cat_count = Counter(m.category for m in materials)
-        recent = sorted(materials, key=lambda m: m.created_at or "", reverse=True)[:5]
+        """统计数据（SQL 聚合，不加载全表）"""
+        total = self.db.query(func.count(Material.id)).scalar() or 0
+        cat_rows = (
+            self.db.query(Material.category, func.count(Material.id))
+            .group_by(Material.category)
+            .all()
+        )
+        recent = (
+            self.db.query(Material)
+            .order_by(Material.created_at.desc())
+            .limit(5)
+            .all()
+        )
         return {
-            "total": len(materials),
-            "categories": dict(cat_count),
+            "total": total,
+            "categories": {cat: cnt for cat, cnt in cat_rows},
             "recent": [self._to_dict(m) for m in recent],
         }
 
@@ -61,7 +71,18 @@ class MaterialService:
         )
 
     def search_relevant(self, question: str, limit: int = 5) -> list:
-        """关键词检索最相关的素材（用于对话引用）"""
+        """检索最相关的素材（优先 FTS5 全文索引，不可用时回退关键词扫描）"""
+        ids = fts.search(self.db, question, limit=limit)
+        if ids is not None:
+            if not ids:
+                return []
+            materials = self.db.query(Material).filter(Material.id.in_(ids)).all()
+            by_id = {m.id: m for m in materials}
+            return [self._to_dict(by_id[i]) for i in ids if i in by_id]
+        return self._search_relevant_scan(question, limit)
+
+    def _search_relevant_scan(self, question: str, limit: int = 5) -> list:
+        """关键词暴力扫描（FTS 不可用时的回退方案）"""
         materials = self.db.query(Material).order_by(
             Material.created_at.desc()
         ).all()
@@ -184,6 +205,7 @@ class MaterialService:
         self.db.add(material)
         self.db.commit()
         self.db.refresh(material)
+        fts.upsert(self.db, material)
 
         return {"success": True, "entry": self._to_dict(material)}
 
@@ -261,6 +283,7 @@ class MaterialService:
         self.db.add(material)
         self.db.commit()
         self.db.refresh(material)
+        fts.upsert(self.db, material)
 
         return {"success": True, "entry": self._to_dict(material)}
 
@@ -276,6 +299,7 @@ class MaterialService:
         m.updated_at = datetime.now().isoformat()
         self.db.commit()
         self.db.refresh(m)
+        fts.upsert(self.db, m)
         return self._to_dict(m)
 
     @staticmethod

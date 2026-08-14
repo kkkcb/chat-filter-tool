@@ -15,15 +15,16 @@ export default function ContactList() {
   } = useWeChatStore()
 
   const menuRef = useRef(null)
+  const searchTimerRef = useRef(null)
 
   const handleSearch = (e) => {
     setQuery(e.target.value)
-    clearTimeout(window.__wxSearchTimer)
+    clearTimeout(searchTimerRef.current)
     if (!e.target.value.trim()) {
       loadContacts()
       return
     }
-    window.__wxSearchTimer = setTimeout(() => loadContacts(), 300)
+    searchTimerRef.current = setTimeout(() => loadContacts(), 300)
   }
 
   const handleTypeChange = (t) => {

@@ -3,7 +3,7 @@ import { Lightbulb, Map, PenLine, Files } from 'lucide-react'
 import InspireWorkshop from './InspireWorkshop'
 import ArticleRoadmap from './ArticleRoadmap'
 import WritingStudio from './WritingStudio'
-import MaterialLibrary from './MaterialLibrary'
+import Library from './Library'
 import './CreativeStudio.css'
 
 const TABS = [
@@ -34,7 +34,7 @@ export default function CreativeStudio() {
         {tab === 'inspire' && <InspireWorkshop />}
         {tab === 'roadmap' && <ArticleRoadmap />}
         {tab === 'writing' && <WritingStudio />}
-        {tab === 'materials' && <MaterialLibrary />}
+        {tab === 'materials' && <Library />}
       </div>
     </div>
   )

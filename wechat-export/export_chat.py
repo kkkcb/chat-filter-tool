@@ -176,8 +176,7 @@ def _extract_content(local_id, local_type, content, ct, chat_username, chat_disp
 def export_chat(chat_name, output_path):
     ctx = mcp_server._resolve_chat_context(chat_name)
     if ctx is None:
-        print(f"Could not resolve chat: {chat_name}")
-        sys.exit(1)
+        raise ValueError(f"找不到联系人: {chat_name}")
 
     username = ctx["username"]
     display_name = ctx["display_name"]
@@ -185,8 +184,7 @@ def export_chat(chat_name, output_path):
     print(f"Resolved to: {display_name} ({username})")
 
     if not ctx["message_tables"]:
-        print(f"No message tables found for {username}")
-        sys.exit(1)
+        raise ValueError(f"该联系人没有消息记录: {chat_name}")
 
     names = mcp_server.get_contact_names()
 
@@ -246,4 +244,8 @@ if __name__ == "__main__":
         sys.exit(1)
     chat = sys.argv[1]
     out = sys.argv[2] if len(sys.argv) > 2 else f"{chat}_export.json"
-    export_chat(chat, out)
+    try:
+        export_chat(chat, out)
+    except ValueError as e:
+        print(f"[ERROR] {e}")
+        sys.exit(1)

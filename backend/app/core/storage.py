@@ -1,10 +1,16 @@
 """Markdown 文件读写抽象层"""
 import re
+import json
 import hashlib
 from datetime import datetime
 from pathlib import Path
 
 from app.config import settings
+
+
+def _yaml_str(value) -> str:
+    """转义为 YAML 安全的双引号标量（JSON 字符串是合法 YAML）"""
+    return json.dumps(value or "", ensure_ascii=False)
 
 
 def save_markdown(entry: dict) -> tuple[str, str]:
@@ -26,16 +32,16 @@ def save_markdown(entry: dict) -> tuple[str, str]:
     tags_str = ", ".join(tags) if tags else ""
 
     md_content = f"""---
-title: "{entry.get('title', '')}"
+title: {_yaml_str(entry.get('title', ''))}
 url: {entry.get('url', '')}
 source: {entry.get('source_type', 'web')}
 date: {datetime.now().isoformat()}
 category: {cat}
 tags: [{tags_str}]
-summary: "{entry.get('summary', '')}"
+summary: {_yaml_str(entry.get('summary', ''))}
 """
     if entry.get("extra_text"):
-        md_content += f'meta: "{entry["extra_text"]}"\n'
+        md_content += f'meta: {_yaml_str(entry["extra_text"])}\n'
     md_content += "---\n\n"
     md_content += f"# {entry.get('title', '')}\n\n"
     if entry.get("summary"):

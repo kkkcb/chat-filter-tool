@@ -126,7 +126,7 @@ DATABASE_PATH=../data/workbench.db
 INBOX_DIR=../../inbox
 
 # 服务
-APP_HOST=0.0.0.0
+APP_HOST=127.0.0.1
 APP_PORT=8000
 ```
 
