@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Eye, Download, FileText, FileCode, Files, Loader2,
   ImageIcon, Mic, Video, Smile, Link2, MapPin, UserCircle,
-  Phone, Info, RotateCcw, MessageSquare, Sparkles, X,
+  Phone, Info, RotateCcw, MessageSquare, Sparkles, X, ChevronUp,
 } from 'lucide-react'
 import { useWeChatStore } from '../../stores/wechatStore'
 import CollectDialog from './CollectDialog'
@@ -15,8 +15,12 @@ const TYPE_ICON = {
 const TYPE_LABEL = {
   image: '图片', voice: '语音', video: '视频', sticker: '表情',
   link: '链接', location: '位置', card: '名片',
-  voip: '通话', system: '系统消息', recall: '撤回消息',
+  voip: '通话', system: '系统消息', recall: '撤回',
 }
+
+/** 首屏渲染条数与每次加载增量 — 超大聊天（数万条）一次性渲染会卡死浏览器 */
+const INITIAL_VISIBLE = 300
+const LOAD_MORE_STEP = 1000
 
 function fmtTime(ts) {
   if (!ts) return ''
@@ -34,6 +38,10 @@ export default function DetailPane() {
   } = useWeChatStore()
   const [showCollect, setShowCollect] = useState(false)
   const [error, setError] = useState('')
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+
+  // 换联系人或新一批消息到达时，重置渲染窗口
+  useEffect(() => { setVisibleCount(INITIAL_VISIBLE) }, [activeContact?.username, messages])
 
   const handlePreview = async () => {
     if (!activeContact) return
@@ -76,7 +84,10 @@ export default function DetailPane() {
           </span>
           <div>
             <div className="wx-detail-name">{activeContact.name}</div>
-            <div className="wx-detail-sub">{activeContact.is_group ? '群聊' : '个人'} · {activeContact.username || ''}</div>
+            <div className="wx-detail-sub">
+              {activeContact.is_group ? '群聊' : '个人'} · {activeContact.username || ''}
+              {!loadingMessages && messages.length > 0 && ` · 共 ${messages.length} 条`}
+            </div>
           </div>
         </div>
       </div>
@@ -148,39 +159,52 @@ export default function DetailPane() {
           </div>
         ) : (
           <>
-            {messages.map((m, i) => {
-              const isMe = m.sender === 'me'
-              const Icon = TYPE_ICON[m.type]
-              const isText = !m.type || m.type === 'text'
-              return (
-                <div key={i} className={`wx-msg-row ${isMe ? 'me' : 'other'}`}>
-                  <span
-                    className="wx-check"
-                    data-checked={selectedMsgs.has(i)}
-                    onClick={() => toggleSelectMsg(i)}
-                  />
-                  <span className={`wx-avatar-mini ${isMe ? 'user' : 'other'}`}>
-                    {isMe ? '我' : (m.sender || '?').charAt(0)}
-                  </span>
-                  <div className="wx-msg-main">
-                    <div className="wx-msg-meta">
-                      <span className="wx-msg-sender">{isMe ? '我' : (m.sender || activeContact.name)}</span>
-                      {m.timestamp && <span className="wx-msg-time">{fmtTime(m.timestamp)}</span>}
-                    </div>
-                    <div className={`wx-bubble ${isMe ? 'wx-bubble-me' : 'wx-bubble-other'}`}>
-                      {isText ? (
-                        <span>{m.content || ''}</span>
-                      ) : (
-                        <span className="wx-msg-special">
-                          {Icon && <Icon size={13} strokeWidth={2} />}
-                          {m.content || TYPE_LABEL[m.type] || m.type || '消息'}
-                        </span>
-                      )}
+            {/* 渲染窗口：默认最近 INITIAL_VISIBLE 条，避免大聊天卡死浏览器 */}
+            {messages.length > visibleCount && (
+              <button className="wx-load-more" onClick={() => setVisibleCount(c => c + LOAD_MORE_STEP)}>
+                <ChevronUp size={13} strokeWidth={2.2} />
+                加载更早的消息（还有 {messages.length - visibleCount} 条）
+              </button>
+            )}
+            {(() => {
+              const total = messages.length
+              const visible = total > visibleCount ? messages.slice(total - visibleCount) : messages
+              const startIndex = total - visible.length
+              return visible.map((m, i) => {
+                const absIdx = startIndex + i // 选中状态使用全量数组下标，与收入素材库对齐
+                const isMe = m.sender === 'me'
+                const Icon = TYPE_ICON[m.type]
+                const isText = !m.type || m.type === 'text'
+                return (
+                  <div key={absIdx} className={`wx-msg-row ${isMe ? 'me' : 'other'}`}>
+                    <span
+                      className="wx-check"
+                      data-checked={selectedMsgs.has(absIdx)}
+                      onClick={() => toggleSelectMsg(absIdx)}
+                    />
+                    <span className={`wx-avatar-mini ${isMe ? 'user' : 'other'}`}>
+                      {isMe ? '我' : (m.sender || '?').charAt(0)}
+                    </span>
+                    <div className="wx-msg-main">
+                      <div className="wx-msg-meta">
+                        <span className="wx-msg-sender">{isMe ? '我' : (m.sender || activeContact.name)}</span>
+                        {m.timestamp && <span className="wx-msg-time">{fmtTime(m.timestamp)}</span>}
+                      </div>
+                      <div className={`wx-bubble ${isMe ? 'wx-bubble-me' : 'wx-bubble-other'}`}>
+                        {isText ? (
+                          <span>{m.content || ''}</span>
+                        ) : (
+                          <span className="wx-msg-special">
+                            {Icon && <Icon size={13} strokeWidth={2} />}
+                            {m.content || TYPE_LABEL[m.type] || m.type || '消息'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })
+            })()}
 
             {/* 收入素材库条 */}
             {selectedCount > 0 && (

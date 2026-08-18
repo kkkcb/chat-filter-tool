@@ -37,12 +37,15 @@ export async function getContacts(q = '', type = 'all', recent = 30) {
   return resp.json()
 }
 
-/** 发起导出：{names:[...], format:'html'|'json'|'both'} → {task_id, names} */
-export async function exportChats(names, format = 'html') {
+/** 发起导出：{names:[...], format:'html'|'json'|'both', tail?} → {task_id, names}
+ *  tail: 仅导出最近 N 条（大聊天预览防卡死）；不传为全量 */
+export async function exportChats(names, format = 'html', tail = null) {
+  const body = { names, format }
+  if (tail) body.tail = tail
   const resp = await fetch(`${WX_BASE}/api/export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ names, format }),
+    body: JSON.stringify(body),
   })
   if (!resp.ok) throw new Error(wxError(resp))
   return resp.json()
@@ -97,12 +100,14 @@ export async function pollExport(taskId, onProgress, interval = 800, timeoutMs =
 }
 
 /**
- * 获取某联系人的完整消息（预览/收入素材库的统一数据源）
- * 流程：export json → 轮询完成 → 下载 json → 解析
+ * 获取某联系人的消息（预览/收入素材库的统一数据源）
+ * 流程：export json(最近 PREVIEW_TAIL 条) → 轮询完成 → 下载 json → 解析
  * 返回 {chat, username, messages} 或抛错
  */
+const PREVIEW_TAIL = 2000
+
 export async function fetchMessages(name, onProgress) {
-  const { task_id } = await exportChats([name], 'json')
+  const { task_id } = await exportChats([name], 'json', PREVIEW_TAIL)
   const status = await pollExport(task_id, onProgress)
 
   // 从 results 找到 json 文件

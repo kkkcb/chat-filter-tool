@@ -173,7 +173,12 @@ def _extract_content(local_id, local_type, content, ct, chat_username, chat_disp
     return None
 
 
-def export_chat(chat_name, output_path):
+def export_chat(chat_name, output_path, tail_limit=None):
+    """导出聊天消息为 JSON。
+
+    tail_limit: 仅导出最近 N 条（预览用，跨分片合并后再截取）；
+                None 表示全量导出。
+    """
     ctx = mcp_server._resolve_chat_context(chat_name)
     if ctx is None:
         raise ValueError(f"找不到联系人: {chat_name}")
@@ -196,12 +201,20 @@ def export_chat(chat_name, output_path):
         table_name = table_info["table_name"]
         with closing(sqlite3.connect(db_path)) as conn:
             id_to_username = mcp_server._load_name2id_maps(conn)
-            rows = mcp_server._query_messages(conn, table_name, limit=None, oldest_first=True)
+            if tail_limit:
+                # 预览模式：每个分片取最新 N 条，合并后再整体截最近 N 条
+                rows = mcp_server._query_messages(
+                    conn, table_name, limit=tail_limit, oldest_first=False
+                )
+            else:
+                rows = mcp_server._query_messages(conn, table_name, limit=None, oldest_first=True)
             for row in rows:
                 all_rows.append((row, id_to_username))
 
     # Sort across shards by create_time (defensive "or 0" in case a row has NULL).
     all_rows.sort(key=lambda pair: pair[0][2] or 0)
+    if tail_limit:
+        all_rows = all_rows[-tail_limit:]
 
     messages = []
     for row, id_to_username in all_rows:
@@ -231,6 +244,8 @@ def export_chat(chat_name, output_path):
     }
     if ctx["is_group"]:
         output["is_group"] = True
+    if tail_limit:
+        output["tail_limit"] = tail_limit
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)

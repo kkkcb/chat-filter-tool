@@ -120,7 +120,7 @@ def _trim_export_memory():
         del export_history[:-MAX_EXPORT_HISTORY]
 
 
-def _do_export(task_id, names, fmt):
+def _do_export(task_id, names, fmt, tail=None):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     with export_lock:
@@ -140,7 +140,7 @@ def _do_export(task_id, names, fmt):
             json_path = os.path.join(OUTPUT_DIR, f"{safe_name}_chat_export.json")
             html_path = os.path.join(OUTPUT_DIR, f"{safe_name}_聊天记录.html")
 
-            export_chat.export_chat(name, json_path)
+            export_chat.export_chat(name, json_path, tail_limit=tail)
 
             with open(json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -323,6 +323,14 @@ class ExportHandler(BaseHTTPRequestHandler):
 
             names = data.get('names', [])
             fmt = data.get('format', 'html')
+            # tail: 仅导出最近 N 条（前端预览用）；非法值按全量处理
+            tail = data.get('tail')
+            try:
+                tail = int(tail) if tail else None
+                if tail is not None and tail <= 0:
+                    tail = None
+            except (TypeError, ValueError):
+                tail = None
 
             if not names:
                 self._send_json({'error': '请选择至少一个联系人'}, 400)
@@ -332,7 +340,7 @@ class ExportHandler(BaseHTTPRequestHandler):
             with export_lock:
                 export_tasks[task_id] = {'done': False, 'results': [], 'total': len(names), 'completed': 0}
 
-            t = threading.Thread(target=_do_export, args=(task_id, names, fmt), daemon=True)
+            t = threading.Thread(target=_do_export, args=(task_id, names, fmt, tail), daemon=True)
             t.start()
 
             self._send_json({'task_id': task_id, 'names': names})
