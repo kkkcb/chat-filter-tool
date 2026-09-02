@@ -4,6 +4,16 @@
 $ErrorActionPreference = "SilentlyContinue"
 $ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+# 等待端口进入 LISTEN（轮询最长 N 秒，避免固定 sleep 后过早检测造成的误报）
+function Wait-Port {
+    param([int]$Port, [int]$TimeoutSec = 20)
+    foreach ($i in 1..$TimeoutSec) {
+        Start-Sleep -Seconds 1
+        if ((Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) -ne $null) { return $true }
+    }
+    return $false
+}
+
 Write-Host ""
 Write-Host "  ==============================" -ForegroundColor Cyan
 Write-Host "    ICE · AI 创作引擎 启动器" -ForegroundColor Cyan
@@ -36,8 +46,7 @@ Start-Process -FilePath "python" `
     -WorkingDirectory "$ROOT\backend" `
     -WindowStyle Hidden
 
-Start-Sleep -Seconds 3
-$backOK = (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue) -ne $null
+$backOK = Wait-Port -Port 8000 -TimeoutSec 20
 if ($backOK) {
     Write-Host "  [OK] 后端就绪: http://localhost:8000" -ForegroundColor Green
 } else {
@@ -63,9 +72,8 @@ if ($NODE -and (Test-Path $VITE_JS)) {
         -WindowStyle Hidden
 }
 
-Start-Sleep -Seconds 4
 $frontPort = 5173
-$frontOK = (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue) -ne $null
+$frontOK = Wait-Port -Port 5173 -TimeoutSec 20
 if (-not $frontOK) {
     $frontOK = (Get-NetTCPConnection -LocalPort 5174 -State Listen -ErrorAction SilentlyContinue) -ne $null
     if ($frontOK) { $frontPort = 5174 }
@@ -88,8 +96,7 @@ Start-Process -FilePath $WXPY `
     -WorkingDirectory "$ROOT\wechat-export" `
     -WindowStyle Hidden
 
-Start-Sleep -Seconds 3
-$wxOK = (Get-NetTCPConnection -LocalPort 5679 -State Listen -ErrorAction SilentlyContinue) -ne $null
+$wxOK = Wait-Port -Port 5679 -TimeoutSec 20
 if ($wxOK) {
     Write-Host "  [OK] 微信导出就绪: http://localhost:5679" -ForegroundColor Green
 } else {
