@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import threading
 import traceback
@@ -292,6 +293,26 @@ class ExportHandler(BaseHTTPRequestHandler):
                 self._send_json({'error': '文件不存在'}, 404)
                 return
             self._send_file(filepath, filename)
+
+        elif path == '/api/wx_file':
+            # 保存聊天中的文件原件：按 (chat, local_id, ts) 定位微信本地缓存副本。
+            # 客户端不传原始路径——由 decode_file_message 在服务端解析并校验
+            # (md5/size 绑定)，杜绝任意路径读取。
+            qs = urllib.parse.parse_qs(parsed.query)
+            chat = (qs.get('chat', [''])[0] or '').strip()
+            local_id = (qs.get('local_id', [''])[0] or '').strip()
+            ts = (qs.get('ts', [''])[0] or '0').strip()
+            if not (chat and local_id.isdigit()):
+                self._send_json({'error': '缺少参数 chat / local_id'}, 400)
+                return
+            result = mcp_server.decode_file_message(chat, int(local_id), int(ts or 0))
+            m = re.search(r'路径:\s*(.+)', result or '')
+            filepath = m.group(1).strip() if m else ''
+            if not filepath or not os.path.isfile(filepath):
+                reason = (result or '定位失败').splitlines()[0]
+                self._send_json({'error': f'文件不可用：{reason}'}, 404)
+                return
+            self._send_file(filepath, os.path.basename(filepath))
 
         elif path == '/api/history':
             with export_lock:

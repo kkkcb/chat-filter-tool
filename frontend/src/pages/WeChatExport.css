@@ -336,11 +336,8 @@
 .wx-msg-row { display:flex; align-items:flex-start; gap:10px; position:relative; margin-top:16px; }
 .wx-msg-row.grouped { margin-top:5px; }
 .wx-msg-row.me { flex-direction:row-reverse; }
-.wx-msg-row .wx-check { margin-top:12px; opacity:0; transition:opacity var(--duration-fast) var(--ease); }
-.wx-msg-row:hover .wx-check { opacity:1; }
-.wx-msg-row .wx-check[data-checked="true"] { opacity:1; }
-/* 已进入多选态（选中了任意消息）→ 全部勾选框常显 */
-.wx-messages-wrap.selecting .wx-msg-row .wx-check { opacity:1; }
+/* 勾选框仅在多选模式渲染（默认视图完全无框） */
+.wx-msg-row .wx-check { margin-top:12px; opacity:1; }
 
 /* 聊天头像：微信式圆角方形 */
 .wx-chat-avatar {
@@ -378,6 +375,41 @@
   font-size:12.5px; line-height:1.55; opacity:.78;
 }
 .wx-bubble-me .wx-quote { background:rgba(0,0,0,.06); }
+
+/* 链接/文件卡片：微信式白卡片，点击可跳转 / 保存原件 */
+.wx-card-link, .wx-card-file {
+  display:flex; align-items:center; gap:8px;
+  min-width:200px; max-width:100%;
+  padding:8px 10px; background:#fff; border-radius:10px;
+  box-shadow:0 1px 2px rgba(25,27,31,.05);
+  text-decoration:none; color:#191B1F; cursor:pointer;
+}
+.wx-card-thumb {
+  width:30px; height:30px; border-radius:6px; flex-shrink:0;
+  background:#F0F2F5; color:#7C838C;
+  display:flex; align-items:center; justify-content:center;
+}
+.wx-card-thumb.file { background:#EBF3FF; color:#3E7BD6; }
+.wx-card-title {
+  flex:1; min-width:0; font-size:13px; line-height:1.45; word-break:break-all;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.wx-card-arrow { color:#B6BCC4; flex-shrink:0; }
+.wx-card-save {
+  flex-shrink:0; padding:3px 11px; border-radius:6px;
+  font-size:12px; font-weight:600; font-family:var(--font);
+  color:#3E7BD6; background:#EBF3FF; text-decoration:none;
+  transition:background var(--duration-fast) var(--ease);
+}
+.wx-card-save:hover { background:#D8E9FF; }
+
+/* 多选模式：选中消息的气泡/卡片描一圈微信绿 */
+.wx-messages-wrap.selecting .wx-msg-row { cursor:pointer; }
+.wx-msg-row.selected .wx-bubble,
+.wx-msg-row.selected .wx-media-box,
+.wx-msg-row.selected .wx-card-link,
+.wx-msg-row.selected .wx-card-file { box-shadow:0 0 0 2.5px #95EC69; }
+.wx-select-icon { color:var(--accent); }
 
 /* 收入素材库操作条 — 吸底固定在消息区底部 */
 .wx-collect-bar {

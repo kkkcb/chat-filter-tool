@@ -57,9 +57,19 @@ MSG_TYPE_MAP = {
     10002: "recall",
 }
 
+# base 49 (appmsg) 的子类型 → 更精确的类型名；前端据此决定渲染方式
+APPMSG_SUBTYPE_MAP = {
+    5: "link",        # 链接/公众号文章
+    6: "file",        # 文件（PDF/docx 等，可经 decode_file_message 保存原件）
+    57: "quote",      # 引用回复（正文是文本，走普通气泡）
+    19: "record",     # 合并转发
+}
+
 
 def _msg_type_str(local_type):
-    base, _ = mcp_server._split_msg_type(local_type)
+    base, sub = mcp_server._split_msg_type(local_type)
+    if base == 49 and sub:
+        return APPMSG_SUBTYPE_MAP.get(sub, "link_or_file")
     return MSG_TYPE_MAP.get(base, f"type_{local_type}")
 
 
@@ -179,6 +189,19 @@ def _extract_content(local_id, local_type, content, ct, chat_username, chat_disp
     return None
 
 
+def _extract_app_url(raw_content, ct, is_group=False):
+    """链接消息(appmsg type=5)的跳转 URL；解析失败或非链接返回 None。"""
+    content = mcp_server._decompress_content(raw_content, ct)
+    if not content:
+        return None
+    if is_group:
+        _, content = mcp_server._parse_message_content(content, 49, True)
+    root = mcp_server._parse_xml_root(content)
+    if root is None:
+        return None
+    return (root.findtext('.//url') or '').strip() or None
+
+
 def export_chat(chat_name, output_path, tail_limit=None):
     """导出聊天消息为 JSON。
 
@@ -242,6 +265,10 @@ def export_chat(chat_name, output_path, tail_limit=None):
             msg["type"] = type_str
         if rendered is not None:
             msg["content"] = rendered
+        if type_str == "link":
+            url = _extract_app_url(content, ct, ctx["is_group"])
+            if url:
+                msg["url"] = url
         messages.append(msg)
 
     output = {

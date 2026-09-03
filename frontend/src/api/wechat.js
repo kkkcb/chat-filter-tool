@@ -68,6 +68,11 @@ export function downloadUrl(filename) {
   return `${WX_BASE}/api/download/${encodeURIComponent(filename)}`
 }
 
+/** 保存聊天中的文件原件：按 (chat, local_id, ts) 定位微信本地缓存副本 */
+export function wxFileUrl(chatName, localId, ts) {
+  return `${WX_BASE}/api/wx_file?chat=${encodeURIComponent(chatName)}&local_id=${localId}&ts=${ts || 0}`
+}
+
 /** 下载文件内容并解析为 JSON */
 export async function fetchJsonFile(filename) {
   const resp = await fetch(downloadUrl(filename))

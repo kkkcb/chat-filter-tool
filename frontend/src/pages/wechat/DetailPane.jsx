@@ -3,20 +3,25 @@ import {
   Eye, Download, FileText, FileCode, Files, Loader2,
   ImageIcon, Mic, Video, Smile, Link2, MapPin, UserCircle,
   Phone, Info, RotateCcw, MessageSquare, Sparkles, X, ChevronUp,
+  ListChecks, ExternalLink,
 } from 'lucide-react'
 import { useWeChatStore } from '../../stores/wechatStore'
 import CollectDialog from './CollectDialog'
 import WxAvatar from '../../components/WxAvatar'
+import { wxFileUrl } from '../../api/wechat'
+import { toast } from '../../components/Toast'
 
 const TYPE_ICON = {
   image: ImageIcon, voice: Mic, video: Video, sticker: Smile,
-  link: Link2, location: MapPin, card: UserCircle,
-  voip: Phone, system: Info, recall: RotateCcw,
+  link: Link2, file: FileText, location: MapPin, contact_card: UserCircle,
+  record: Files, link_or_file: Link2,
+  voip: Phone, call: Phone, system: Info, recall: RotateCcw,
 }
 const TYPE_LABEL = {
   image: '图片', voice: '语音', video: '视频', sticker: '表情',
-  link: '链接', location: '位置', card: '名片',
-  voip: '通话', system: '系统消息', recall: '撤回',
+  link: '链接', file: '文件', location: '位置', contact_card: '名片',
+  record: '聊天记录', link_or_file: '链接/文件',
+  voip: '通话', call: '通话', system: '系统消息', recall: '撤回',
 }
 
 /** 首屏渲染条数与每次加载增量 — 超大聊天（数万条）一次性渲染会卡死浏览器 */
@@ -70,11 +75,23 @@ export default function DetailPane() {
     previewContact,
   } = useWeChatStore()
   const [showCollect, setShowCollect] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
   const [error, setError] = useState('')
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
   const [elapsed, setElapsed] = useState(0)
   const messagesRef = useRef(null)
   const prevHeightRef = useRef(0)
+
+  const exitSelect = () => {
+    setSelectMode(false)
+    clearSelectedMsgs()
+  }
+
+  // 换联系人时退出多选并清空选中
+  useEffect(() => {
+    setSelectMode(false)
+    clearSelectedMsgs()
+  }, [activeContact?.username])
 
   // 换联系人或新一批消息到达时，重置渲染窗口
   useEffect(() => { setVisibleCount(INITIAL_VISIBLE) }, [activeContact?.username, messages])
@@ -120,6 +137,28 @@ export default function DetailPane() {
     exportSelected([activeContact.name], exportFormat).catch(e => setError(e.message))
   }
 
+  // 保存文件原件：先 fetch 校验（本地无缓存时后端返回 404+原因），成功再触发下载
+  const handleSaveFile = async (e, m) => {
+    e.stopPropagation()
+    const name = (m.content || '文件').replace(/^\[文件\]\s*/, '')
+    try {
+      const resp = await fetch(wxFileUrl(activeContact.name, m.local_id, m.timestamp))
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null)
+        throw new Error(err?.error || '保存失败')
+      }
+      const blob = await resp.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = name
+      a.click()
+      URL.revokeObjectURL(a.href)
+      toast(`已保存 ${name}`, 'success')
+    } catch (err) {
+      toast(String(err.message || err).split('\n')[0], 'error', 5000)
+    }
+  }
+
   const selectedCount = selectedMsgs.size
 
   // 空态：未选联系人
@@ -139,52 +178,79 @@ export default function DetailPane() {
 
   return (
     <div className="wx-col wx-col-mid">
-      {/* 联系人头部 */}
+      {/* 联系人头部：多选模式下替换为选取操作 */}
       <div className="wx-detail-header">
-        <div className="wx-detail-contact">
-          <WxAvatar
-            kind={isGroup ? 'group' : 'user'}
-            seed={activeContact.name}
-            size={38}
-            text={activeContact.name}
-          />
-          <div>
-            <div className="wx-detail-name">{activeContact.name}</div>
-            <div className="wx-detail-sub">
-              {isGroup ? '群聊' : '个人'}
-              {!loadingMessages && messages.length > 0 && ` · ${messages.length} 条消息`}
+        {selectMode ? (
+          <>
+            <div className="wx-detail-contact">
+              <ListChecks size={18} strokeWidth={2} className="wx-select-icon" />
+              <div>
+                <div className="wx-detail-name">选择消息</div>
+                <div className="wx-detail-sub">{selectedCount > 0 ? `已选 ${selectedCount} 条` : '点击消息选取'}</div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="wx-detail-ops">
-          <div className="wx-format-group">
-            {[
-              { key: 'html', label: 'HTML', Icon: FileText },
-              { key: 'json', label: 'JSON', Icon: FileCode },
-              { key: 'both', label: '两者', Icon: Files },
-            ].map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                className={`wx-format-btn ${exportFormat === key ? 'active' : ''}`}
-                onClick={() => setExportFormat(key)}
-              >
-                <Icon size={11} strokeWidth={2} /> {label}
+            <div className="wx-detail-ops">
+              <button className="wx-btn-secondary" onClick={exitSelect}>
+                <X size={13} strokeWidth={2} /> 取消
               </button>
-            ))}
-          </div>
-          <button className="wx-btn-secondary" onClick={handlePreview} disabled={loadingMessages} title="重新读取最近消息">
-            {loadingMessages ? <Loader2 size={13} strokeWidth={2.5} className="wx-spin" /> : <RotateCcw size={13} strokeWidth={2} />}
-            {loadingMessages ? '读取中' : '刷新'}
-          </button>
-          <button className="wx-btn-primary" onClick={handleExport} disabled={exporting}>
-            {exporting ? <Loader2 size={13} strokeWidth={2.5} className="wx-spin" /> : <Download size={13} strokeWidth={2} />}
-            导出
-          </button>
-        </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="wx-detail-contact">
+              <WxAvatar
+                kind={isGroup ? 'group' : 'user'}
+                seed={activeContact.name}
+                size={38}
+                text={activeContact.name}
+              />
+              <div>
+                <div className="wx-detail-name">{activeContact.name}</div>
+                <div className="wx-detail-sub">
+                  {isGroup ? '群聊' : '个人'}
+                  {!loadingMessages && messages.length > 0 && ` · ${messages.length} 条消息`}
+                </div>
+              </div>
+            </div>
+            <div className="wx-detail-ops">
+              <button
+                className="wx-btn-secondary"
+                onClick={() => setSelectMode(true)}
+                disabled={!messages.length || loadingMessages}
+                title="选取消息收入素材库"
+              >
+                <ListChecks size={13} strokeWidth={2} /> 多选
+              </button>
+              <div className="wx-format-group">
+                {[
+                  { key: 'html', label: 'HTML', Icon: FileText },
+                  { key: 'json', label: 'JSON', Icon: FileCode },
+                  { key: 'both', label: '两者', Icon: Files },
+                ].map(({ key, label, Icon }) => (
+                  <button
+                    key={key}
+                    className={`wx-format-btn ${exportFormat === key ? 'active' : ''}`}
+                    onClick={() => setExportFormat(key)}
+                  >
+                    <Icon size={11} strokeWidth={2} /> {label}
+                  </button>
+                ))}
+              </div>
+              <button className="wx-btn-secondary" onClick={handlePreview} disabled={loadingMessages} title="重新读取最近消息">
+                {loadingMessages ? <Loader2 size={13} strokeWidth={2.5} className="wx-spin" /> : <RotateCcw size={13} strokeWidth={2} />}
+                {loadingMessages ? '读取中' : '刷新'}
+              </button>
+              <button className="wx-btn-primary" onClick={handleExport} disabled={exporting}>
+                {exporting ? <Loader2 size={13} strokeWidth={2.5} className="wx-spin" /> : <Download size={13} strokeWidth={2} />}
+                导出
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 导出进度 */}
-      {exportTask && (
+      {exportTask && !selectMode && (
         <div className="wx-progress-wrap">
           <div className="wx-progress-bar">
             <div className="wx-progress-fill" style={{ width: `${exportTask.progress}%` }} />
@@ -208,7 +274,7 @@ export default function DetailPane() {
       {error && <div className="wx-detail-error">{error}</div>}
 
       {/* 消息列表 + 吸底收集条 */}
-      <div className={`wx-messages-wrap ${selectedCount > 0 ? 'selecting' : ''}`}>
+      <div className={`wx-messages-wrap ${selectMode ? 'selecting' : ''}`}>
         <div className="wx-messages" ref={messagesRef}>
           {loadingMessages ? (
             <div className="wx-messages-loading">
@@ -240,8 +306,9 @@ export default function DetailPane() {
                   const absIdx = startIndex + i // 选中状态使用全量数组下标，与收入素材库对齐
                   const isMe = m.sender === 'me'
                   const Icon = TYPE_ICON[m.type]
-                  const isText = !m.type || m.type === 'text'
+                  const isText = !m.type || m.type === 'text' || m.type === 'quote'
                   const isSys = m.type === 'system' || m.type === 'recall'
+                  const checked = selectedMsgs.has(absIdx)
                   // 时间胶囊：首条 / 跨天 / 距上一条超过 5 分钟
                   const dk = m.timestamp ? dateKey(m.timestamp) : null
                   const showTime = !!m.timestamp && (dk !== prevKey || (prevTs && m.timestamp - prevTs > TIME_GAP))
@@ -262,15 +329,83 @@ export default function DetailPane() {
                       </div>
                     )
                   }
+
+                  // 气泡内容：按消息类型分流
+                  const renderBody = () => {
+                    // 图片/视频：微信式缩略占位块，不带气泡底
+                    if (!isText && (m.type === 'image' || m.type === 'video')) {
+                      return (
+                        <span className="wx-media-box">
+                          {Icon && <Icon size={26} strokeWidth={1.6} />}
+                          <span>{TYPE_LABEL[m.type]}</span>
+                        </span>
+                      )
+                    }
+                    // 链接：可点击卡片（有真实 URL 时）
+                    if (m.type === 'link') {
+                      const title = (m.content || '').replace(/^\[链接\]\s*/, '')
+                      if (m.url) {
+                        return (
+                          <a
+                            className="wx-card-link"
+                            href={m.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => selectMode && e.preventDefault()}
+                          >
+                            <span className="wx-card-thumb"><Link2 size={15} strokeWidth={2} /></span>
+                            <span className="wx-card-title">{title || m.url}</span>
+                            <ExternalLink size={12} strokeWidth={2} className="wx-card-arrow" />
+                          </a>
+                        )
+                      }
+                    }
+                    // 文件：卡片 + 保存原件（定位微信本地缓存副本）
+                    if (m.type === 'file') {
+                      const name = (m.content || '').replace(/^\[文件\]\s*/, '')
+                      return (
+                        <span className="wx-card-file">
+                          <span className="wx-card-thumb file"><FileText size={15} strokeWidth={2} /></span>
+                          <span className="wx-card-title">{name || '文件'}</span>
+                          <button
+                            className="wx-card-save"
+                            onClick={(e) => handleSaveFile(e, m)}
+                            title="保存原件（来自微信本地缓存）"
+                          >
+                            保存
+                          </button>
+                        </span>
+                      )
+                    }
+                    // 引用 / 普通文本 / 其他特殊类型
+                    return (
+                      <div className={`wx-bubble ${isMe ? 'wx-bubble-me' : 'wx-bubble-other'}`}>
+                        {isText ? (
+                          <BubbleText content={m.content} isQuote={isMe} />
+                        ) : (
+                          <span className="wx-msg-special">
+                            {Icon && <Icon size={14} strokeWidth={2} />}
+                            {m.content || TYPE_LABEL[m.type] || m.type || '消息'}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  }
+
                   return (
                     <div key={absIdx}>
                       {showTime && <div className="wx-time-pill">{pillLabel(m.timestamp)}</div>}
-                      <div className={`wx-msg-row ${isMe ? 'me' : 'other'} ${grouped ? 'grouped' : ''}`}>
-                        <span
-                          className="wx-check"
-                          data-checked={selectedMsgs.has(absIdx)}
-                          onClick={() => toggleSelectMsg(absIdx)}
-                        />
+                      <div
+                        className={`wx-msg-row ${isMe ? 'me' : 'other'} ${grouped ? 'grouped' : ''} ${checked ? 'selected' : ''}`}
+                        onClick={() => selectMode && toggleSelectMsg(absIdx)}
+                      >
+                        {selectMode && (
+                          <span
+                            className="wx-check"
+                            data-checked={checked}
+                            onClick={(e) => { e.stopPropagation(); toggleSelectMsg(absIdx) }}
+                          />
+                        )}
                         <WxAvatar
                           kind={isMe ? 'me' : 'user'}
                           seed={isMe ? '__me__' : (m.sender || activeContact.name)}
@@ -279,29 +414,7 @@ export default function DetailPane() {
                         />
                         <div className="wx-msg-main">
                           {isGroup && !isMe && <div className="wx-msg-sender">{m.sender}</div>}
-                          {(() => {
-                            // 图片/视频：微信式缩略占位块，不带气泡底
-                            if (!isText && (m.type === 'image' || m.type === 'video')) {
-                              return (
-                                <span className="wx-media-box">
-                                  {Icon && <Icon size={26} strokeWidth={1.6} />}
-                                  <span>{TYPE_LABEL[m.type]}</span>
-                                </span>
-                              )
-                            }
-                            return (
-                              <div className={`wx-bubble ${isMe ? 'wx-bubble-me' : 'wx-bubble-other'}`}>
-                                {isText ? (
-                                  <BubbleText content={m.content} isQuote={isMe} />
-                                ) : (
-                                  <span className="wx-msg-special">
-                                    {Icon && <Icon size={14} strokeWidth={2} />}
-                                    {m.content || TYPE_LABEL[m.type] || m.type || '消息'}
-                                  </span>
-                                )}
-                              </div>
-                            )
-                          })()}
+                          {renderBody()}
                         </div>
                       </div>
                     </div>
@@ -312,15 +425,22 @@ export default function DetailPane() {
           )}
         </div>
 
-        {/* 收入素材库操作条 — 吸底固定，不再跟着列表滚 */}
-        {selectedCount > 0 && !loadingMessages && (
+        {/* 多选态吸底操作条 */}
+        {selectMode && !loadingMessages && (
           <div className="wx-collect-bar">
-            <span className="wx-collect-count">已选 {selectedCount} 条</span>
+            <span className="wx-collect-count">
+              {selectedCount > 0 ? `已选 ${selectedCount} 条` : '点击消息选取'}
+            </span>
             <div className="wx-collect-btns">
-              <button className="wx-btn-clear-sm" onClick={clearSelectedMsgs}>
-                <X size={12} /> 清除
+              <button className="wx-btn-clear-sm" onClick={exitSelect}>
+                <X size={12} /> 取消
               </button>
-              <button className="wx-btn-primary" onClick={() => setShowCollect(true)}>
+              <button
+                className="wx-btn-primary"
+                disabled={selectedCount === 0}
+                onClick={() => setShowCollect(true)}
+                style={selectedCount === 0 ? { opacity: .55, cursor: 'not-allowed' } : undefined}
+              >
                 <Sparkles size={13} strokeWidth={2.5} /> 收入素材库
               </button>
             </div>

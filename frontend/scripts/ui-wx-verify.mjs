@@ -55,7 +55,12 @@ await page.screenshot({ path: 'screenshots/wx-10-collapsed.png' })
 await page.click('.wx-panel-toggle') // 展开恢复
 await new Promise(r => setTimeout(r, 500))
 
-// 5. 勾选消息 → 收集条吸底可见
+// 5. 多选模式 → 勾选消息 → 收集条吸底可见
+await page.evaluate(() => {
+  const btns = [...document.querySelectorAll('button')]
+  btns.find(b => b.textContent.includes('多选'))?.click()
+})
+await new Promise(r => setTimeout(r, 300))
 await page.evaluate(() => document.querySelectorAll('.wx-msg-row .wx-check')[5]?.click())
 await new Promise(r => setTimeout(r, 300))
 const bar = await page.evaluate(() => {
@@ -66,7 +71,10 @@ const bar = await page.evaluate(() => {
 })
 console.log(`[5] 收集条吸底: ${JSON.stringify(bar)}`)
 await page.screenshot({ path: 'screenshots/wx-11-collect-bar.png' })
-await page.evaluate(() => document.querySelector('.wx-btn-clear-sm')?.click())
+await page.evaluate(() => {
+  const btns = [...document.querySelectorAll('button')]
+  btns.find(b => b.textContent.includes('取消'))?.click()
+})
 
 await page.screenshot({ path: 'screenshots/wx-12-final.png' })
 console.log(`\nJS errors: ${errors.length ? errors.join('; ') : '(none)'}`)
