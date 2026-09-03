@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Loader2, Check, Clock, FolderOpen,
+  Loader2, Check, Clock, FolderOpen, Plug,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
 import { getNote } from '../api/notes'
 import { renderMarkdown } from '../utils/markdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
+import KbApiModal from '../components/KbApiModal'
 import './PersonalKB.css'
 
 /** 标签配色 — 按标签名 hash 落到固定色板，视觉稳定 */
@@ -43,6 +44,7 @@ export default function PersonalKB() {
 
   // 弹窗状态：null | {mode:'view', id} | {mode:'edit', id} | {mode:'create'}
   const [modal, setModal] = useState(null)
+  const [showApi, setShowApi] = useState(false)
 
   const reload = useCallback((q, tag, category) => {
     const params = {}
@@ -93,8 +95,11 @@ export default function PersonalKB() {
           <div className="pkb-search">
             <Search size={14} strokeWidth={2} />
             <input placeholder="搜索标题 / 内容 / 标签..." value={query} onChange={handleSearch} />
-            {query && <X size={13} className="pkb-search-clear" onClick={() => { setQuery(''); reload('', activeTag) }} />}
+            {query && <X size={13} className="pkb-search-clear" onClick={() => { setQuery(''); reload('', activeTag, activeCategory) }} />}
           </div>
+          <button className="pkb-api-btn" onClick={() => setShowApi(true)} title="外部 AI 读取这些笔记的接口">
+            <Plug size={14} strokeWidth={2.2} /> 对外接口
+          </button>
           <button className="pkb-new-btn" onClick={() => setModal({ mode: 'create' })}>
             <Plus size={15} strokeWidth={2.4} /> 新建笔记
           </button>
@@ -192,6 +197,9 @@ export default function PersonalKB() {
           onEdit={(id) => setModal({ mode: 'edit', id })}
         />
       )}
+
+      {/* 对外接口说明弹窗 */}
+      {showApi && <KbApiModal onClose={() => setShowApi(false)} />}
     </div>
   )
 }
