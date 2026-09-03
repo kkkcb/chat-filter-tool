@@ -56,13 +56,20 @@ const btnVisible = await page.evaluate((title) => {
 console.log(`删除前 ${before} 张卡片，悬停后删除按钮可见: ${btnVisible}`)
 await page.screenshot({ path: 'screenshots/note-delete-hover.png' })
 
-// 3. 点击删除 → confirm 自动接受 → 数量减一 + toast
-page.on('dialog', d => d.accept())
+// 3. 点击删除 → 应用内确认弹窗 → 点「删除」→ 数量减一 + toast
 await page.evaluate((title) => {
   const cards = [...document.querySelectorAll('.pkb-card')]
   const c = cards.find(x => x.querySelector('.pkb-card-title')?.textContent === title)
   c.querySelector('.pkb-card-delete').click()
 }, TEST_TITLE)
+await page.waitForSelector('.confirm-dialog', { timeout: 5000 })
+await page.screenshot({ path: 'screenshots/note-confirm-dialog.png' })
+console.log('确认弹窗文案:', await page.evaluate(() => ({
+  title: document.querySelector('.confirm-title')?.textContent,
+  message: document.querySelector('.confirm-message')?.textContent,
+  btn: document.querySelector('.confirm-btn.ok')?.textContent,
+})))
+await page.click('.confirm-btn.ok')
 await new Promise(r => setTimeout(r, 1200))
 const after = await page.evaluate(() => document.querySelectorAll('.pkb-card').length)
 const toast = await page.evaluate(() => document.querySelector('.toast')?.textContent || '')

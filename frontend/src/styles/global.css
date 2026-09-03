@@ -93,6 +93,51 @@ input:focus, textarea:focus { outline:none; }
 @keyframes toastIn { from { opacity:0; transform:translateY(-12px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
 @keyframes toastOut { to { opacity:0; transform:translateY(-8px) scale(.96); } }
 
+/* === 确认弹窗（替代 window.confirm） === */
+.confirm-overlay {
+  position:fixed; inset:0; z-index:1900; background:rgba(26,23,21,.45);
+  display:flex; align-items:center; justify-content:center;
+  animation:pkbFadeInGlobal .15s var(--ease);
+  backdrop-filter:blur(2px);
+}
+.confirm-dialog {
+  width:360px; max-width:88vw; padding:26px 26px 20px;
+  background:var(--bg-card); border-radius:var(--radius-lg);
+  box-shadow:0 20px 60px rgba(0,0,0,.22);
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  animation:confirmPop .22s var(--ease);
+}
+@keyframes pkbFadeInGlobal { from { opacity:0; } to { opacity:1; } }
+@keyframes confirmPop {
+  from { opacity:0; transform:translateY(14px) scale(.96); }
+  to { opacity:1; transform:translateY(0) scale(1); }
+}
+.confirm-icon {
+  width:46px; height:46px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; margin-bottom:14px;
+}
+.confirm-icon.danger { background:rgba(239,68,68,.1); color:var(--danger); }
+.confirm-icon.info { background:var(--accent-light); color:var(--accent); }
+.confirm-title { font-size:15px; font-weight:700; color:var(--text); margin-bottom:6px; }
+.confirm-message {
+  font-size:13px; color:var(--text-muted); line-height:1.7;
+  max-width:300px; word-break:break-all; margin-bottom:20px;
+}
+.confirm-btns { display:flex; gap:10px; width:100%; }
+.confirm-btn {
+  flex:1; padding:9px 0; border-radius:var(--radius); font-size:13px; font-weight:600;
+  font-family:var(--font); cursor:pointer;
+  transition:all var(--duration-fast) var(--ease);
+}
+.confirm-btn.cancel {
+  border:1px solid var(--border); background:var(--bg-card); color:var(--text-muted);
+}
+.confirm-btn.cancel:hover { color:var(--text); border-color:var(--text-light); background:var(--bg-muted); }
+.confirm-btn.ok { border:none; background:var(--accent); color:#fff; }
+.confirm-btn.ok:hover { background:var(--accent-dark); transform:translateY(-1px); box-shadow:0 4px 12px var(--accent-glow); }
+.confirm-btn.ok.danger { background:var(--danger); }
+.confirm-btn.ok.danger:hover { background:#dc2626; box-shadow:0 4px 12px rgba(239,68,68,.25); }
+
 @media (prefers-reduced-motion:reduce) {
   * { animation:none !important; transition:none !important; }
 }

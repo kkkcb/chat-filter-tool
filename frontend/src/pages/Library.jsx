@@ -7,6 +7,7 @@ import { useMaterialStore } from '../stores/materialStore'
 import { renderMarkdown } from '../utils/markdown'
 import { getMaterials, getMaterial, deleteMaterial } from '../api/materials'
 import { toast } from '../components/Toast'
+import { confirmDialog } from '../components/Confirm'
 import './Library.css'
 import './KnowledgeBase.css'
 
@@ -49,7 +50,13 @@ export default function Library() {
   }, [contextMenu])
 
   const handleDelete = useCallback(async (material) => {
-    if (!window.confirm(`确定删除「${material.title}」？`)) return
+    const ok = await confirmDialog({
+      title: '删除素材',
+      message: `确定删除「${material.title}」？关联的 Markdown 文件也会一并删除`,
+      confirmText: '删除',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await deleteMaterial(material.id)
       setExpandedId(null)

@@ -6,6 +6,7 @@ import PersonalKB from '../pages/PersonalKB'
 import CreativeStudio from '../pages/CreativeStudio'
 import WeChatExport from '../pages/WeChatExport'
 import ToastHost from '../components/Toast'
+import ConfirmHost from '../components/Confirm'
 import './AppLayout.css'
 
 export default function AppLayout() {
@@ -25,6 +26,7 @@ export default function AppLayout() {
         </div>
       </main>
       <ToastHost />
+      <ConfirmHost />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import {
 import { useNoteStore } from '../stores/noteStore'
 import { renderMarkdown } from '../utils/markdown'
 import { toast } from '../components/Toast'
+import { confirmDialog } from '../components/Confirm'
 import './PersonalKB.css'
 
 /** 标签配色 — 按标签名 hash 落到固定色板，视觉稳定 */
@@ -151,9 +152,15 @@ export default function PersonalKB() {
   )
 }
 
-/** 卡片上直接删除（带确认） */
+/** 卡片上直接删除（应用内确认弹窗） */
 async function handleDeleteNote(note, removeNote) {
-  if (!window.confirm(`确定删除笔记「${note.title}」？`)) return
+  const ok = await confirmDialog({
+    title: '删除笔记',
+    message: `确定删除「${note.title}」？删除后不可恢复`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
   try {
     await removeNote(note.id)
     toast('笔记已删除', 'success')
@@ -233,7 +240,13 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
 
   const handleDelete = async () => {
     if (!note) return
-    if (!window.confirm(`确定删除笔记「${note.title}」？`)) return
+    const ok = await confirmDialog({
+      title: '删除笔记',
+      message: `确定删除「${note.title}」？删除后不可恢复`,
+      confirmText: '删除',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await removeNote(note.id)
       toast('笔记已删除', 'success')
