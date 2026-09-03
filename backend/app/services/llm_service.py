@@ -165,11 +165,19 @@ class LLMService:
 
         return parsed
 
-    async def summarize_note(self, transcript: str, instruction: str = "") -> dict | None:
-        """把对话记录总结成个人知识库笔记（标题/标签/Markdown 正文）"""
+    async def summarize_note(self, transcript: str, instruction: str = "",
+                             existing_categories: list | None = None) -> dict | None:
+        """把对话记录总结成个人知识库笔记（标题/标签/分类/Markdown 正文）"""
         focus = f"\n用户特别关注：{instruction}\n" if instruction else ""
+        cats = existing_categories or []
+        cat_hint = (
+            f"\n用户已有的笔记大分类：{', '.join(cats)}。\n"
+            "category 字段优先从上述已有分类中选最贴合的一个；都不贴合时可新建一个 2-6 字的分类名；无法判断给空字符串。\n"
+            if cats else
+            "\ncategory 是笔记的大分类（如「技术原理」「个人规划」「踩坑记录」），2-6 个字；无法判断给空字符串。\n"
+        )
         prompt = f"""你是一个经验沉淀助手。以下是用户与 AI 助手的对话记录，请把它总结成一篇可长期复用的个人知识库笔记。
-{focus}
+{focus}{cat_hint}
 要求：
 1. 提炼这次对话中的「踩坑点」「解决办法」「经验结论」，没有的板块可省略
 2. 保留具体的命令、配置、路径、错误信息等可操作细节
@@ -180,6 +188,7 @@ class LLMService:
 {{
   "title": "...",
   "tags": ["..."],
+  "category": "...",
   "content": "markdown 正文"
 }}
 

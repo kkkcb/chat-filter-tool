@@ -13,12 +13,13 @@ router = APIRouter()
 async def list_notes(
     q: str = Query("", description="标题/正文/标签模糊搜索"),
     tag: str = Query("", description="按标签过滤"),
+    category: str = Query("", description="按大分类过滤；__none__ 表示未分类"),
     limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     """笔记列表（按更新时间倒序，仅含摘要不含全文）"""
     svc = NoteService(db)
-    return svc.list(q=q, tag=tag, limit=limit)
+    return svc.list(q=q, tag=tag, category=category, limit=limit)
 
 
 @router.get("/notes/stats")
@@ -38,7 +39,7 @@ async def get_note(note_id: int, db: Session = Depends(get_db)):
 @router.post("/notes")
 async def create_note(req: NoteCreate, db: Session = Depends(get_db)):
     """手动新建笔记"""
-    return NoteService(db).create(title=req.title, content=req.content, tags=req.tags)
+    return NoteService(db).create(title=req.title, content=req.content, tags=req.tags, category=req.category)
 
 
 @router.post("/notes/from-conversation")
@@ -56,7 +57,7 @@ async def note_from_conversation(req: SummarizeRequest, db: Session = Depends(ge
 
 @router.put("/notes/{note_id}")
 async def update_note(note_id: int, req: NoteUpdate, db: Session = Depends(get_db)):
-    result = NoteService(db).update(note_id, title=req.title, content=req.content, tags=req.tags)
+    result = NoteService(db).update(note_id, title=req.title, content=req.content, tags=req.tags, category=req.category)
     if not result:
         raise HTTPException(status_code=404, detail="笔记不存在")
     return result

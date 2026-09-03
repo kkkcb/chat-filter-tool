@@ -7,12 +7,14 @@ class NoteCreate(BaseModel):
     title: str
     content: str = ""
     tags: List[str] = []
+    category: str = ""
 
 
 class NoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     tags: Optional[List[str]] = None
+    category: Optional[str] = None
 
 
 class SummarizeRequest(BaseModel):

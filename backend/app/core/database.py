@@ -28,6 +28,14 @@ def init_db():
     from app.models import material, conversation, note  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
+    # 轻量迁移：已有库补 notes.category 列（create_all 不会给现存表加列）
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        cols = [r[1] for r in conn.execute(text("PRAGMA table_info(notes)"))]
+        if "category" not in cols:
+            conn.execute(text("ALTER TABLE notes ADD COLUMN category TEXT DEFAULT ''"))
+            conn.commit()
+
     # 重建 FTS5 索引（捕获迁移/手工改动；失败则回退关键词扫描）
     from app.core import fts
     try:

@@ -19,7 +19,7 @@ _fts_available = None  # None=未探测 True/False=探测结果
 
 def _note_text(n: Note) -> str:
     """笔记索引文本；标题重复两次提高权重"""
-    raw = f"{n.title} {n.title} {n.content or ''} {n.tags or ''}"
+    raw = f"{n.title} {n.title} {n.content or ''} {n.tags or ''} {n.category or ''}"
     return bigramize(raw)
 
 
@@ -69,14 +69,15 @@ class NoteService:
 
     # ===== CRUD =====
 
-    def list(self, q: str = "", tag: str = "", limit: int = 200) -> list[dict]:
+    def list(self, q: str = "", tag: str = "", category: str = "", limit: int = 200) -> list[dict]:
         """列表查询 — SQL 侧过滤，正文只取前 600 字符生成摘要，不下发全文。
 
         前端打开详情/编辑时再通过 get(note_id) 拉取完整正文，
         避免笔记数量增长后列表接口越来越重。
+        category: "__none__" 表示未分类（category 为空），其他非空值精确匹配。
         """
         query = self.db.query(
-            Note.id, Note.title, Note.tags, Note.source_conversation_id,
+            Note.id, Note.title, Note.tags, Note.category, Note.source_conversation_id,
             Note.created_at, Note.updated_at,
             func.substr(Note.content, 1, 600).label("content_head"),
         )
@@ -90,6 +91,10 @@ class NoteService:
         if tag:
             # tags 存 JSON 数组字符串，按 "标签" 精确词匹配
             query = query.filter(Note.tags.like(f'%"{tag}"%'))
+        if category == "__none__":
+            query = query.filter(or_(Note.category == "", Note.category.is_(None)))
+        elif category:
+            query = query.filter(Note.category == category)
         rows = query.order_by(Note.updated_at.desc()).limit(limit).all()
         return [self._row_to_dict(r) for r in rows]
 
@@ -98,12 +103,13 @@ class NoteService:
         return self._to_dict(n) if n else None
 
     def create(self, title: str, content: str = "", tags: list | None = None,
-               source_conversation_id: int | None = None) -> dict:
+               category: str = "", source_conversation_id: int | None = None) -> dict:
         now = datetime.now().isoformat()
         n = Note(
             title=title or "未命名笔记",
             content=content or "",
             tags=json.dumps(tags or [], ensure_ascii=False),
+            category=(category or "").strip(),
             source_conversation_id=source_conversation_id,
             created_at=now, updated_at=now,
         )
@@ -114,7 +120,7 @@ class NoteService:
         return self._to_dict(n)
 
     def update(self, note_id: int, title: str | None = None, content: str | None = None,
-               tags: list | None = None) -> dict | None:
+               tags: list | None = None, category: str | None = None) -> dict | None:
         n = self.db.query(Note).filter(Note.id == note_id).first()
         if not n:
             return None
@@ -124,6 +130,8 @@ class NoteService:
             n.content = content
         if tags is not None:
             n.tags = json.dumps(tags, ensure_ascii=False)
+        if category is not None:
+            n.category = category.strip()
         n.updated_at = datetime.now().isoformat()
         self.db.commit()
         self.db.refresh(n)
@@ -148,7 +156,17 @@ class NoteService:
                     tag_counter[t] = tag_counter.get(t, 0) + 1
             except (json.JSONDecodeError, TypeError):
                 continue
-        return {"total": total, "tags": tag_counter}
+        # 大分类计数（空串 = 未分类，前端单独显示）
+        cat_counter: dict[str, int] = {}
+        for n in self.db.query(Note.category).all():
+            name = (n[0] or "").strip()
+            cat_counter[name] = cat_counter.get(name, 0) + 1
+        return {"total": total, "tags": tag_counter, "categories": cat_counter}
+
+    def existing_categories(self) -> list[str]:
+        """已有分类名（去掉空串），供总结时 AI 选择/前端下拉建议"""
+        rows = self.db.query(Note.category).distinct().all()
+        return sorted({(r[0] or "").strip() for r in rows} - {""})
 
     # ===== 检索（对话 RAG 用） =====
 
@@ -242,7 +260,9 @@ class NoteService:
             raise ValueError("该对话没有可总结的内容")
 
         transcript = "\n\n".join(transcript_parts)[-30000:]  # 防 prompt 过长
-        result = await llm_service.summarize_note(transcript, instruction)
+        result = await llm_service.summarize_note(
+            transcript, instruction, existing_categories=self.existing_categories()
+        )
         if not result or not result.get("content"):
             raise RuntimeError("AI 总结失败，请稍后重试")
 
@@ -250,6 +270,7 @@ class NoteService:
             title=result.get("title") or "对话总结笔记",
             content=result["content"],
             tags=result.get("tags") or [],
+            category=result.get("category") or "",
             source_conversation_id=conversation_id,
         )
 
@@ -272,6 +293,7 @@ class NoteService:
             "content": None,  # 列表不含全文，详情接口按需拉取
             "excerpt": excerpt[:160],
             "tags": tags,
+            "category": (row.category or "").strip(),
             "source_conversation_id": row.source_conversation_id,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
@@ -290,6 +312,7 @@ class NoteService:
             "content": n.content or "",
             "excerpt": excerpt[:160],
             "tags": tags,
+            "category": (n.category or "").strip(),
             "source_conversation_id": n.source_conversation_id,
             "created_at": n.created_at,
             "updated_at": n.updated_at,
