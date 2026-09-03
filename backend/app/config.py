@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # 个人知识库对外接口（/api/kb）可选 token；不配置则本机免鉴权
     kb_api_token: str = ""
 
+    # 全局访问令牌：公网部署（tunnel/服务器）时保护所有 /api（含 GLM key 调用）；
+    # 设置后请求需带 X-Access-Token / ?access_token= / Bearer，/api/health 放行探活
+    app_access_token: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

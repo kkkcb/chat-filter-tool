@@ -7,6 +7,7 @@ import CreativeStudio from '../pages/CreativeStudio'
 import WeChatExport from '../pages/WeChatExport'
 import ToastHost from '../components/Toast'
 import ConfirmHost from '../components/Confirm'
+import AccessGateHost from '../components/AccessGate'
 import './AppLayout.css'
 
 export default function AppLayout() {
@@ -27,6 +28,7 @@ export default function AppLayout() {
       </main>
       <ToastHost />
       <ConfirmHost />
+      <AccessGateHost />
     </div>
   )
 }

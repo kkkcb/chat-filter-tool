@@ -51,24 +51,41 @@ app.add_middleware(
 app.add_exception_handler(AppError, app_error_handler)
 
 
-# /api/kb 对外放开 CORS（本地 AI 网页工具跨源读取用）；其余路径维持上面的白名单。
-# 服务只绑 127.0.0.1，放开 CORS 不会把接口暴露到公网。
+# 全局访问令牌 + 按需放开 CORS：
+# - 纯本机模式（未设 APP_ACCESS_TOKEN）：/api 全放开，CORS 维持上面的白名单，
+#   仅 /api/kb（对外只读接口）额外放开跨源
+# - 公网部署模式（设了 APP_ACCESS_TOKEN）：所有 /api 需带 X-Access-Token /
+#   ?access_token= / Bearer（/api/health 放行探活），CORS 放开全部来源（有鉴权兜底）
 @app.middleware("http")
-async def kb_cors(request: Request, call_next):
-    if not request.url.path.startswith("/api/kb"):
-        return await call_next(request)
-    if request.method == "OPTIONS":
+async def access_gate_and_cors(request: Request, call_next):
+    path = request.url.path
+    token = settings.app_access_token
+    open_cors = bool(token) or path.startswith("/api/kb")
+
+    if open_cors and path.startswith("/api") and request.method == "OPTIONS":
         from fastapi.responses import JSONResponse
         return JSONResponse(
             {},
             headers={
                 "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Access-Token",
             },
         )
+
+    if token and path.startswith("/api") and path != "/api/health":
+        supplied = request.headers.get("x-access-token") or request.query_params.get("access_token") or ""
+        if not supplied:
+            auth = request.headers.get("authorization") or ""
+            if auth.lower().startswith("bearer "):
+                supplied = auth[7:].strip()
+        if supplied != token:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "需要访问令牌"}, status_code=401)
+
     response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    if open_cors and path.startswith("/api"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
 # 注册路由

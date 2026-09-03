@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plug, X, Copy, Check, Loader2 } from 'lucide-react'
 import { toast } from './Toast'
+import { request } from '../api/client'
 
 /**
  * 个人知识库对外接口说明弹窗 — 展示外部 AI 读取笔记的 HTTP 接口与示例。
@@ -16,8 +17,7 @@ export default function KbApiModal({ onClose }) {
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/kb/')
-      .then((r) => r.json())
+    request('/kb/')
       .then((d) => { if (!cancelled) setInfo(d) })
       .catch(() => {})
     return () => { cancelled = true }
