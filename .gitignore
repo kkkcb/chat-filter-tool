@@ -39,3 +39,9 @@ Thumbs.db
 # Build artifacts
 wechat-export.zip
 *.zip
+.env.local
+.access-token.txt
+
+# 部署运行时产物
+tools/tunnel.log
+backend/backend.log
