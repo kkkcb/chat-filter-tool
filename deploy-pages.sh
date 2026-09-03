@@ -1,27 +1,32 @@
 #!/usr/bin/env bash
-# 按《Cloudflare Pages 部署链路》笔记的流程，把本工作台前端部署到 Cloudflare Pages。
+# 把本工作台前端部署到 Cloudflare Pages。
 #
-# 前置（一次性）：
-#   1. cp .env.local.example .env.local
-#   2. 填入 CLOUDFLARE_API_TOKEN（dash.cloudflare.com/profile/api-tokens 创建，
-#      权限 Account → Cloudflare Pages → 编辑）与 CLOUDFLARE_ACCOUNT_ID
-#   3. 若后端已公网可达（cloudflared tunnel / 服务器），填 VITE_API_BASE=https://...
-#      并在 backend/.env 设置 APP_ACCESS_TOKEN=同一个强令牌（保护 GLM key 与数据）
-#      后端保持本机时 VITE_API_BASE 留空（部署出的站点仅静态壳，微信/对话功能不可用）
+# 凭证二选一：
+#   A. 已 wrangler login（推荐，浏览器授权一次即可）—— 无需 .env.local
+#   B. API 令牌：cp .env.local.example .env.local 填入 CLOUDFLARE_API_TOKEN / ACCOUNT_ID
+#
+# 后端地址：若已公网可达（cloudflared tunnel / 服务器），在 .env.local 设
+# VITE_API_BASE=https://... 并在 backend/.env 设 APP_ACCESS_TOKEN=强令牌；
+# 后端保持本机时 VITE_API_BASE 留空（线上为静态壳，对话/微信功能需后端在线）。
 #
 # 上线：bash deploy-pages.sh   （老地址自动变新；带哈希快照地址可用于回滚）
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if [ ! -f .env.local ]; then
-  echo "缺少 .env.local —— 先 cp .env.local.example .env.local 并填入凭证" >&2
-  exit 1
+# 凭证文件存在则读入（不存在则依赖 wrangler login 的 OAuth）
+if [ -f .env.local ]; then
+  set -a; source .env.local; set +a
 fi
 
-set -a; source .env.local; set +a
+PROJECT="${PAGES_PROJECT_NAME:-ice-workbench}"
 
 cd frontend
 VITE_API_BASE="${VITE_API_BASE:-}" npm run build
-npx wrangler pages deploy dist \
-  --project-name="${PAGES_PROJECT_NAME:-ice-workbench}" \
-  --branch=main --commit-dirty=true
+
+# 项目不存在则先创建（新版 wrangler 不再隐式建项目）
+if ! npx wrangler pages project list 2>/dev/null | grep -q "$PROJECT"; then
+  echo "→ 创建 Pages 项目 $PROJECT"
+  npx wrangler pages project create "$PROJECT" --production-branch=main
+fi
+
+npx wrangler pages deploy dist --project-name="$PROJECT" --branch=main --commit-dirty=true
