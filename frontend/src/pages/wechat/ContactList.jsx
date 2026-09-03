@@ -5,11 +5,11 @@ import { useWeChatStore } from '../../stores/wechatStore'
 export default function ContactList() {
   const {
     contacts, query, typeFilter, loadingContacts,
-    selectedNames, activeContact, savedNames, recentFilter, hasSearched,
+    selectedNames, activeContact, savedNames, recentFilter, hasSearched, loadingMessages,
     contextMenu,
     setQuery, setTypeFilter, loadContacts, setRecentFilter,
     toggleSelect, clearSelected,
-    setActive,
+    openContact,
     exportSelected, hideContact,
     openContextMenu, closeContextMenu,
   } = useWeChatStore()
@@ -33,7 +33,8 @@ export default function ContactList() {
   }
 
   const handleItemClick = (c) => {
-    setActive(c)
+    // 点击即预览（openContact 内部有 loading 防抖与同联系人短路）
+    openContact(c)
   }
 
   const handleContextMenu = (e, name) => {

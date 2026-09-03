@@ -19,16 +19,17 @@ function fmtSize(bytes) {
 }
 
 export default function HistoryPane() {
-  const { history, files, loadingHistory, loadHistory, loadFiles } = useWeChatStore()
+  const { history, files, loadingHistory, loadHistory, loadFiles, rightCollapsed } = useWeChatStore()
 
   useEffect(() => {
+    if (rightCollapsed) return // 收起时不请求，展开时再加载
     loadHistory()
     loadFiles()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [rightCollapsed])
 
   return (
-    <div className="wx-col wx-col-right">
+    <div className={`wx-col wx-col-right ${rightCollapsed ? 'collapsed' : ''}`}>
       {/* 导出历史 */}
       <div className="wx-right-section">
         <div className="wx-right-header">

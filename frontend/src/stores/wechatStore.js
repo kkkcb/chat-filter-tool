@@ -8,6 +8,7 @@ import {
 // === localStorage 持久化 ===
 const SAVED_KEY = 'wx_saved_contacts'
 const HIDDEN_KEY = 'wx_hidden_contacts'
+const RIGHT_COLLAPSED_KEY = 'wx_right_collapsed'
 
 function loadSet(key) {
   try {
@@ -70,6 +71,11 @@ export const useWeChatStore = create((set, get) => ({
   history: [],
   files: [],
   loadingHistory: false,
+
+  // 右栏（导出历史）折叠状态
+  rightCollapsed: (() => {
+    try { return localStorage.getItem(RIGHT_COLLAPSED_KEY) === '1' } catch { return false }
+  })(),
 
   // === Actions ===
 
@@ -135,6 +141,23 @@ export const useWeChatStore = create((set, get) => ({
   setTypeFilter: (typeFilter) => { set({ typeFilter }) },
 
   // 点击联系人 → 自动收藏
+  // 点击联系人 → 自动收藏 + 直接预览消息（省掉再点一次「预览消息」）
+  openContact: async (contact) => {
+    const { loadingMessages, activeContact } = get()
+    if (loadingMessages) return
+    // 点击已在预览的联系人 → 重新加载；点击新联系人 → 直接预览
+    if (activeContact?.name === contact.name && get().messages.length > 0) return
+    try {
+      await get().previewContact(contact)
+    } catch { /* 错误由 DetailPane 的调用方展示 */ }
+  },
+
+  toggleRightCollapsed: () => {
+    const next = !get().rightCollapsed
+    try { localStorage.setItem(RIGHT_COLLAPSED_KEY, next ? '1' : '0') } catch {}
+    set({ rightCollapsed: next })
+  },
+
   setActive: (contact) => {
     const saved = new Set(get().savedNames)
     const wasNew = !saved.has(contact.name)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MessageCircle, RefreshCw, AlertCircle, Users, User } from 'lucide-react'
+import { MessageCircle, RefreshCw, AlertCircle, Users, User, PanelRight } from 'lucide-react'
 import { useWeChatStore } from '../stores/wechatStore'
 import ContactList from './wechat/ContactList'
 import DetailPane from './wechat/DetailPane'
@@ -8,8 +8,9 @@ import './WeChatExport.css'
 
 export default function WeChatExport() {
   const {
-    online, checking, stats,
+    online, checking, stats, rightCollapsed,
     checkOnlineStatus, loadStats, loadHistory, loadFiles,
+    toggleRightCollapsed,
   } = useWeChatStore()
 
   const [refreshKey, setRefreshKey] = useState(0)
@@ -98,9 +99,18 @@ export default function WeChatExport() {
             </div>
           )}
         </div>
-        <button className="wx-refresh-btn" onClick={handleRefresh} title="刷新">
-          <RefreshCw size={15} strokeWidth={2} className={checking ? 'wx-spin' : ''} />
-        </button>
+        <div className="wx-topbar-right">
+          <button
+            className={`wx-panel-toggle ${rightCollapsed ? 'collapsed' : ''}`}
+            onClick={toggleRightCollapsed}
+            title={rightCollapsed ? '展开导出历史' : '收起导出历史，给消息区让空间'}
+          >
+            <PanelRight size={15} strokeWidth={2} />
+          </button>
+          <button className="wx-refresh-btn" onClick={handleRefresh} title="刷新">
+            <RefreshCw size={15} strokeWidth={2} className={checking ? 'wx-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       <div className="wx-layout" key={refreshKey}>
