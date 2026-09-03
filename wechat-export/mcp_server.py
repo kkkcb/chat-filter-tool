@@ -547,7 +547,12 @@ def _resolve_sender_label(real_sender_id, sender_from_content, is_group, chat_us
 def _resolve_quote_sender_label(ref_user, ref_display_name, is_group, chat_username, chat_display_name, names):
     if is_group:
         if ref_user:
-            return _display_name_for_username(ref_user, names)
+            label = _display_name_for_username(ref_user, names)
+            # names 里查不到时 label 原样返回 wxid——引用行不要裸显 wxid，
+            # 退化到 refermsg 自带的 displayname，再没有就匿名（"回复: "）。
+            if label != ref_user:
+                return label
+            return ref_display_name or ''
         return ref_display_name or ''
 
     self_username = _get_self_username()
@@ -691,7 +696,13 @@ def _format_app_message_text(content, local_type, is_group, chat_username, chat_
         if ref is not None:
             ref_user = (ref.findtext('fromusr') or '').strip()
             ref_display_name = (ref.findtext('displayname') or '').strip()
-            ref_content = _collapse_text(ref.findtext('content') or '')
+            # 被引用内容是原始消息 content：群聊带 "wxid_xxx:\n" 前缀，且可能整段是
+            # XML（引用了图片/文件等非文本消息）。剥前缀必须在 _collapse_text 之前
+            # （换行被压成空格后就匹配不到 ":\n" 了）。
+            _, ref_raw = _parse_message_content(ref.findtext('content') or '', local_type, is_group)
+            ref_content = _collapse_text(ref_raw)
+            if ref_content.startswith(('<?xml', '<msg')):
+                ref_content = '[非文本消息]'
         if len(ref_content) > 160:
             ref_content = ref_content[:160] + "..."
 

@@ -148,10 +148,16 @@ def _format_video_message(content):
     return f"[视频] {playlength}秒" if playlength else "[视频]"
 
 
-def _extract_content(local_id, local_type, content, ct, chat_username, chat_display_name):
+def _extract_content(local_id, local_type, content, ct, chat_username, chat_display_name, is_group=False, names=None):
     content = mcp_server._decompress_content(content, ct)
     if content is None:
         return None
+
+    # 群消息原始 content 带 "wxid_xxx:\n" 发送者前缀（sender 已单独解析成字段），
+    # 不剥离会原样显示进气泡；对 XML 类消息还会破坏解析。与 mcp_server
+    # _format_message_text 的标准路径保持一致。
+    if is_group:
+        _, content = mcp_server._parse_message_content(content, local_type, True)
 
     base, _ = mcp_server._split_msg_type(local_type)
     if base == 1:
@@ -162,7 +168,7 @@ def _extract_content(local_id, local_type, content, ct, chat_username, chat_disp
         return _format_sticker_message(content)
     if base == 49:
         return mcp_server._format_app_message_text(
-            content, local_type, False, chat_username, chat_display_name, {}
+            content, local_type, is_group, chat_username, chat_display_name, names or {}
         )
     if base == 50:
         return mcp_server._format_voip_message_text(content)
@@ -221,7 +227,9 @@ def export_chat(chat_name, output_path, tail_limit=None):
         local_id, local_type, create_time, real_sender_id, content, ct = row
         sender = _resolve_sender(row, ctx, names, id_to_username)
         type_str = _msg_type_str(local_type)
-        rendered = _extract_content(local_id, local_type, content, ct, username, display_name)
+        rendered = _extract_content(
+            local_id, local_type, content, ct, username, display_name, ctx["is_group"], names
+        )
 
         # Compact format: omit defaults/nulls. type defaults to "text", transcription
         # is added later by transcribe_chat.py only for voice messages. See CLAUDE.md.
