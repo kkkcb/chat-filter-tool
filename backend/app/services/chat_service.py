@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.services.llm_service import llm_service, VISION_PRESETS
 from app.services.material_service import MaterialService
+from app.services.note_service import NoteService
 
 
 class ChatService:
@@ -14,6 +15,7 @@ class ChatService:
     def __init__(self, db: Session):
         self.db = db
         self.material_svc = MaterialService(db)
+        self.note_svc = NoteService(db)
 
     async def handle_message(self, message: str, image: str = "", mode: str = "describe", history: list | None = None) -> dict:
         """
@@ -104,6 +106,13 @@ class ChatService:
         async for event in self._handle_chat_stream(message, thinking, history or []):
             yield event
 
+    def _build_rag(self, question: str) -> tuple[str, list]:
+        """合并素材库 + 个人知识库笔记的 RAG 上下文"""
+        mat_ctx, mat_cites = self.material_svc.build_rag_context(question)
+        note_ctx, note_cites = self.note_svc.build_note_context(question)
+        context = "\n\n".join(x for x in (mat_ctx, note_ctx) if x)
+        return context, mat_cites + note_cites
+
     def _build_messages(self, question: str, rag_context: str, history: list) -> list[dict]:
         """组装完整 messages：system + 多轮历史 + 当前问题"""
         if not rag_context:
@@ -111,14 +120,15 @@ class ChatService:
         else:
             system_content = (
                 "你是一个AI科普创作助手。用户正在运营AI科普公众号，坚持「一文一概念」系列。\n\n"
-                "以下是用户的**知识库**中与问题最相关的素材（按相关度排序）：\n\n"
                 f"{rag_context}\n\n"
+                "上方是与问题最相关的知识库内容（收藏素材 + 个人知识库笔记，均按相关度排序）。\n"
                 "请基于这些素材回答用户的问题。要求：\n"
-                "1. 回答中**必须引用相关素材**，用 [序号] 标注引用来源\n"
-                "2. 回答末尾列出「参考资料」部分，格式：序号 + 标题 + 链接\n"
+                "1. 回答中**必须引用相关素材**，素材用 [序号] 标注、笔记用 [N序号] 标注引用来源\n"
+                "2. 回答末尾列出「参考资料」部分，格式：序号 + 标题 + 链接（笔记无链接则写「个人笔记」）\n"
                 "3. 如果素材中没有完全匹配的内容，基于素材做合理延伸，并标注哪些是你的推断\n"
                 "4. 回答要简洁有干货，适合中文表达\n"
-                "5. 如果用户问的是某个技能/工具/理论，优先从知识库中找到对应素材引用"
+                "5. 如果用户问的是某个技能/工具/理论，优先从知识库中找到对应素材引用；"
+                "用户曾经踩过的坑（个人笔记里有记录）要主动提醒"
             )
         messages = [{"role": "system", "content": system_content}]
         # 多轮历史（role/content 均已校验，见路由层 _load_history）
@@ -128,7 +138,7 @@ class ChatService:
 
     async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None):
         """流式知识库对话"""
-        rag_context, citations = self.material_svc.build_rag_context(question)
+        rag_context, citations = self._build_rag(question)
         messages = self._build_messages(question, rag_context, history or [])
 
         # 发送引用信息
@@ -149,7 +159,7 @@ class ChatService:
 
     async def _handle_chat(self, question: str, history: list | None = None) -> dict:
         """知识库对话 — 自动检索相关素材并引用"""
-        rag_context, citations = self.material_svc.build_rag_context(question)
+        rag_context, citations = self._build_rag(question)
         messages = self._build_messages(question, rag_context, history or [])
 
         reply = await llm_service.chat(messages)

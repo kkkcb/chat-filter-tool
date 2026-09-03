@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react'
-import { Snowflake, BookOpen, PenLine, Library, MessageCircle, MessagesSquare } from 'lucide-react'
+import { Snowflake, BookOpen, PenLine, Library, MessageCircle, MessagesSquare, NotebookPen } from 'lucide-react'
 import { useMaterialStore } from '../stores/materialStore'
+import { useNoteStore } from '../stores/noteStore'
 import './Sidebar.css'
 
 export default function Sidebar({ currentView, onSwitch }) {
   const { stats, fetchStats } = useMaterialStore()
+  const { stats: noteStats, loadStats: loadNoteStats } = useNoteStore()
   const [kbExpanded, setKbExpanded] = useState(true)
 
   useEffect(() => {
     fetchStats()
-    const timer = setInterval(fetchStats, 30000)
+    loadNoteStats()
+    const timer = setInterval(() => { fetchStats(); loadNoteStats() }, 30000)
     return () => clearInterval(timer)
-  }, [fetchStats])
+  }, [fetchStats, loadNoteStats])
 
-  const isKBSub = ['chat', 'library'].includes(currentView)
+  const isKBSub = ['chat', 'library', 'notes'].includes(currentView)
 
   return (
     <div className="sidebar">
@@ -52,6 +55,12 @@ export default function Sidebar({ currentView, onSwitch }) {
             >
               <span className="icon"><MessageCircle size={16} strokeWidth={2} /></span> 对话
             </div>
+            <div
+              className={`nav-item nav-sub ${currentView === 'notes' ? 'active' : ''}`}
+              onClick={() => onSwitch('notes')}
+            >
+              <span className="icon"><NotebookPen size={16} strokeWidth={2} /></span> 个人知识库
+            </div>
           </div>
         )}
 
@@ -74,7 +83,7 @@ export default function Sidebar({ currentView, onSwitch }) {
 
       <div className="sidebar-stats">
         <div className="stat-row"><span>素材总数</span><strong>{stats.total}</strong></div>
-        <div className="stat-row"><span>分类数</span><strong>{Object.keys(stats.categories).length}</strong></div>
+        <div className="stat-row"><span>个人笔记</span><strong>{noteStats.total}</strong></div>
       </div>
     </div>
   )

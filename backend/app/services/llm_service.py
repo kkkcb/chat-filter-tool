@@ -165,6 +165,32 @@ class LLMService:
 
         return parsed
 
+    async def summarize_note(self, transcript: str, instruction: str = "") -> dict | None:
+        """把对话记录总结成个人知识库笔记（标题/标签/Markdown 正文）"""
+        focus = f"\n用户特别关注：{instruction}\n" if instruction else ""
+        prompt = f"""你是一个经验沉淀助手。以下是用户与 AI 助手的对话记录，请把它总结成一篇可长期复用的个人知识库笔记。
+{focus}
+要求：
+1. 提炼这次对话中的「踩坑点」「解决办法」「经验结论」，没有的板块可省略
+2. 保留具体的命令、配置、路径、错误信息等可操作细节
+3. 正文用 Markdown，结构清晰（## 小标题、列表、代码块）
+4. 标题一句话点明主题（20字以内），标签为 2-5 个中文关键词
+
+请严格返回以下 JSON 格式（不要 markdown 代码块，不要多余文字）:
+{{
+  "title": "...",
+  "tags": ["..."],
+  "content": "markdown 正文"
+}}
+
+对话记录：
+{transcript}"""
+        result = await self._call(
+            [{"role": "user", "content": prompt}],
+            json_mode=True, temperature=0.3, timeout=120
+        )
+        return self._parse_json(result)
+
     async def generate_topics(self, kb_context: str) -> list:
         """生成选题建议"""
         prompt = (

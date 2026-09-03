@@ -3,12 +3,14 @@ import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
   Check, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
-  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown,
+  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
 import { useVisionStore } from '../stores/visionStore'
 import { useMaterialStore } from '../stores/materialStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { useNoteStore } from '../stores/noteStore'
+import { summarizeConversation } from '../api/notes'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown } from '../utils/markdown'
@@ -30,6 +32,8 @@ export default function KnowledgeBase() {
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
   const [input, setInput] = useState('')
+  const [summarizing, setSummarizing] = useState(false)
+  const { loadStats: loadNoteStats } = useNoteStore()
   const messagesRef = useRef(null)
   const fileInputRef = useRef(null)
   const { ref: textareaRef, resize } = useAutoResize()
@@ -112,6 +116,21 @@ export default function KnowledgeBase() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
+  // 把当前对话总结沉淀为个人知识库笔记
+  const handleSummarize = async () => {
+    const convId = activeId || conversations[0]?.id
+    if (!convId) { toast('当前没有可总结的对话', 'error'); return }
+    setSummarizing(true)
+    try {
+      const data = await summarizeConversation(convId)
+      toast(`已保存笔记「${data.note.title}」`, 'success', 4000)
+      loadNoteStats()
+    } catch (e) {
+      toast(e?.message || '总结失败，请重试', 'error')
+    }
+    setSummarizing(false)
+  }
+
   const hasChat = messages.length > 0
 
   return (
@@ -149,17 +168,30 @@ export default function KnowledgeBase() {
       <div className="kb-chat-main">
         <div className="kb-topbar">
           <h2 className="header-title"><MessageCircle size={18} strokeWidth={2.2} /> 对话</h2>
-          <button
-            className={`think-toggle ${deepThinking ? 'active' : ''}`}
-            onClick={toggleDeepThinking}
-            title={deepThinking ? '深度思考已开启（响应较慢）' : '点击开启深度思考'}
-          >
-            <Brain size={14} strokeWidth={2} />
-            <span>深度思考</span>
-            <span className={`think-switch ${deepThinking ? 'on' : ''}`}>
-              <span className="think-switch-knob" />
-            </span>
-          </button>
+          <div className="kb-topbar-actions">
+            <button
+              className={`note-sum-btn ${hasChat ? '' : 'disabled'}`}
+              onClick={handleSummarize}
+              disabled={!hasChat || summarizing}
+              title={hasChat ? '把当前对话总结成笔记，沉淀踩坑与经验' : '先进行一段对话'}
+            >
+              {summarizing
+                ? <Loader2 size={14} strokeWidth={2.5} className="spin-icon" />
+                : <NotebookPen size={14} strokeWidth={2} />}
+              <span>{summarizing ? '总结中...' : '总结为笔记'}</span>
+            </button>
+            <button
+              className={`think-toggle ${deepThinking ? 'active' : ''}`}
+              onClick={toggleDeepThinking}
+              title={deepThinking ? '深度思考已开启（响应较慢）' : '点击开启深度思考'}
+            >
+              <Brain size={14} strokeWidth={2} />
+              <span>深度思考</span>
+              <span className={`think-switch ${deepThinking ? 'on' : ''}`}>
+                <span className="think-switch-knob" />
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="chat-page-messages" ref={messagesRef} onScroll={handleMessagesScroll}>

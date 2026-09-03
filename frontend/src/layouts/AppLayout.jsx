@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Sidebar from './Sidebar'
 import KnowledgeBase from '../pages/KnowledgeBase'
 import Library from '../pages/Library'
+import PersonalKB from '../pages/PersonalKB'
 import CreativeStudio from '../pages/CreativeStudio'
 import WeChatExport from '../pages/WeChatExport'
 import ToastHost from '../components/Toast'
@@ -18,6 +19,7 @@ export default function AppLayout() {
         <div key={view} className="view-transition">
           {view === 'chat' && <KnowledgeBase />}
           {view === 'library' && <Library />}
+          {view === 'notes' && <PersonalKB />}
           {view === 'studio' && <CreativeStudio />}
           {view === 'wechat' && <WeChatExport />}
         </div>

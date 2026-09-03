@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.core.database import init_db
 from app.core.exceptions import AppError, app_error_handler
-from app.routers import chat, vision, materials, inspire, conversations
+from app.routers import chat, vision, materials, inspire, conversations, notes
 from app.services.llm_service import llm_service
 
 
@@ -56,6 +56,7 @@ app.include_router(vision.router, prefix="/api", tags=["视觉"])
 app.include_router(materials.router, prefix="/api", tags=["素材"])
 app.include_router(inspire.router, prefix="/api", tags=["灵感"])
 app.include_router(conversations.router, prefix="/api", tags=["对话历史"])
+app.include_router(notes.router, prefix="/api", tags=["个人知识库"])
 
 
 @app.get("/api/health")
