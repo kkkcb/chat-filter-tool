@@ -143,6 +143,10 @@
 .pkb-view-title { font-size:19px; font-weight:700; color:var(--text); line-height:1.5; margin-bottom:10px; }
 .pkb-view-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
 .pkb-view-content { font-size:13.5px; line-height:1.85; color:var(--text); }
+.pkb-view-loading {
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  padding:40px 0; color:var(--text-muted); font-size:13px;
+}
 .pkb-view-content h1, .pkb-view-content h2, .pkb-view-content h3 { margin:14px 0 8px; font-size:15px; font-weight:700; }
 .pkb-view-content h1:first-child, .pkb-view-content h2:first-child, .pkb-view-content h3:first-child { margin-top:0; }
 .pkb-view-content p { margin-bottom:9px; }

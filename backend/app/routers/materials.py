@@ -23,7 +23,7 @@ async def categories():
 async def list_materials(
     category: str | None = Query(None),
     page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=200),
+    size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     """素材列表（支持分类筛选+分页）"""

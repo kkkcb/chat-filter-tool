@@ -18,7 +18,7 @@ const SOURCE_ICONS = {
 }
 
 export default function Library() {
-  const { fetchStats } = useMaterialStore()
+  const { fetchStats, stats } = useMaterialStore()
   const [materials, setMaterials] = useState([])
   const [loadingMats, setLoadingMats] = useState(true)
   const [filter, setFilter] = useState('')
@@ -29,7 +29,7 @@ export default function Library() {
 
   const loadMaterials = useCallback(async () => {
     try {
-      const data = await getMaterials()
+      const data = await getMaterials({ size: 500 })
       setMaterials(data)
     } catch { setMaterials([]) }
     setLoadingMats(false)
@@ -102,6 +102,9 @@ export default function Library() {
         <div className="lib-topbar-left">
           <h2 className="header-title"><LibraryIcon size={18} strokeWidth={2.2} /> 素材库</h2>
           <span className="lib-count">{materials.length} 条素材</span>
+          {stats.total > materials.length && materials.length > 0 && (
+            <span className="lib-count" title="超过 500 条时仅加载最近 500 条">已加载 {materials.length}/{stats.total}</span>
+          )}
         </div>
         <div className="lib-search">
           <Search size={14} strokeWidth={2} />

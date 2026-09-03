@@ -4,6 +4,7 @@ import {
   Hash, Inbox, Loader2, Check, Clock,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
+import { getNote } from '../api/notes'
 import { renderMarkdown } from '../utils/markdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
@@ -204,7 +205,9 @@ function NoteCard({ note, onOpen, onDelete }) {
 /* === 查看/编辑/新建 弹窗 === */
 function NoteModal({ modal, notes, onClose, onEdit }) {
   const { saveNote, removeNote } = useNoteStore()
-  const note = modal.id ? notes.find(n => n.id === modal.id) : null
+  // 列表行（即时渲染头部），详情打开后异步补全正文
+  const [note, setNote] = useState(modal.id ? notes.find(n => n.id === modal.id) : null)
+  const [loadingNote, setLoadingNote] = useState(!!modal.id)
   const editing = modal.mode === 'edit' || modal.mode === 'create'
 
   const [title, setTitle] = useState('')
@@ -214,15 +217,27 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const [copied, setCopied] = useState(false)
   const textareaRef = useRef(null)
 
+  // 打开已有笔记 → 拉取完整正文（列表接口只含摘要）
+  useEffect(() => {
+    if (!modal.id) return
+    let cancelled = false
+    setLoadingNote(true)
+    getNote(modal.id)
+      .then(full => { if (!cancelled && full) setNote(full) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingNote(false) })
+    return () => { cancelled = true }
+  }, [modal.id])
+
   useEffect(() => {
     if (modal.mode === 'create') {
       setTitle(''); setTagsInput(''); setContent('')
-    } else if (note) {
+    } else if (note?.content != null) {
       setTitle(note.title)
-      setTagsInput(note.tags.join(', '))
+      setTagsInput((note.tags || []).join(', '))
       setContent(note.content)
     }
-  }, [modal.mode, modal.id])
+  }, [modal.mode, note])
 
   const handleSave = async () => {
     if (!title.trim()) { toast('请填写标题', 'error'); return }
@@ -319,7 +334,11 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                 })}
               </div>
             )}
-            <div className="pkb-view-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(note?.content || '') }} />
+            {loadingNote || note?.content == null ? (
+              <div className="pkb-view-loading"><Loader2 size={18} strokeWidth={2.5} className="wx-spin" /> 加载正文...</div>
+            ) : (
+              <div className="pkb-view-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content) }} />
+            )}
           </div>
         )}
       </div>

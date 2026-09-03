@@ -13,11 +13,12 @@ router = APIRouter()
 async def list_notes(
     q: str = Query("", description="标题/正文/标签模糊搜索"),
     tag: str = Query("", description="按标签过滤"),
+    limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
-    """笔记列表（按更新时间倒序）"""
+    """笔记列表（按更新时间倒序，仅含摘要不含全文）"""
     svc = NoteService(db)
-    return svc.list(q=q, tag=tag)
+    return svc.list(q=q, tag=tag, limit=limit)
 
 
 @router.get("/notes/stats")

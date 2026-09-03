@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.note import Note
@@ -69,21 +69,29 @@ class NoteService:
 
     # ===== CRUD =====
 
-    def list(self, q: str = "", tag: str = "") -> list[dict]:
-        query = self.db.query(Note).order_by(Note.updated_at.desc())
-        notes = query.all()
-        q_lower = (q or "").lower()
-        result = []
-        for n in notes:
-            d = self._to_dict(n)
-            if q_lower and q_lower not in (n.title or "").lower() \
-                    and q_lower not in (n.content or "").lower() \
-                    and not any(q_lower in t.lower() for t in d["tags"]):
-                continue
-            if tag and tag not in d["tags"]:
-                continue
-            result.append(d)
-        return result
+    def list(self, q: str = "", tag: str = "", limit: int = 200) -> list[dict]:
+        """列表查询 — SQL 侧过滤，正文只取前 600 字符生成摘要，不下发全文。
+
+        前端打开详情/编辑时再通过 get(note_id) 拉取完整正文，
+        避免笔记数量增长后列表接口越来越重。
+        """
+        query = self.db.query(
+            Note.id, Note.title, Note.tags, Note.source_conversation_id,
+            Note.created_at, Note.updated_at,
+            func.substr(Note.content, 1, 600).label("content_head"),
+        )
+        if q:
+            like = f"%{q}%"
+            query = query.filter(or_(
+                Note.title.like(like),
+                Note.content.like(like),
+                Note.tags.like(like),
+            ))
+        if tag:
+            # tags 存 JSON 数组字符串，按 "标签" 精确词匹配
+            query = query.filter(Note.tags.like(f'%"{tag}"%'))
+        rows = query.order_by(Note.updated_at.desc()).limit(limit).all()
+        return [self._row_to_dict(r) for r in rows]
 
     def get(self, note_id: int) -> dict | None:
         n = self.db.query(Note).filter(Note.id == note_id).first()
@@ -246,13 +254,36 @@ class NoteService:
         )
 
     @staticmethod
+    def _strip_markdown(text: str) -> str:
+        text = re.sub(r"[#*`>\-\[\]()!]+", " ", text or "")
+        return re.sub(r"\s+", " ", text).strip()
+
+    @staticmethod
+    def _row_to_dict(row) -> dict:
+        """列表行 → dict（仅摘要，无全文）"""
+        try:
+            tags = json.loads(row.tags) if row.tags else []
+        except (json.JSONDecodeError, TypeError):
+            tags = []
+        excerpt = NoteService._strip_markdown(row.content_head or "")
+        return {
+            "id": row.id,
+            "title": row.title,
+            "content": None,  # 列表不含全文，详情接口按需拉取
+            "excerpt": excerpt[:160],
+            "tags": tags,
+            "source_conversation_id": row.source_conversation_id,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+
+    @staticmethod
     def _to_dict(n: Note) -> dict:
         try:
             tags = json.loads(n.tags) if n.tags else []
         except (json.JSONDecodeError, TypeError):
             tags = []
-        excerpt = re.sub(r"[#*`>\-\[\]()!]+", " ", n.content or "")
-        excerpt = re.sub(r"\s+", " ", excerpt).strip()
+        excerpt = NoteService._strip_markdown(n.content or "")
         return {
             "id": n.id,
             "title": n.title,
