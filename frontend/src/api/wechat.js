@@ -25,12 +25,17 @@ export async function getStats() {
   return resp.json()
 }
 
-/** 联系人列表：{contacts:[{name,username,is_group,remark}], total, filtered} */
-export async function getContacts(q = '', type = 'all', recent = 30) {
+/** 联系人列表：{contacts:[{name,username,is_group,remark}], total, filtered}
+ *  names: 精确名单（已收藏视图）— 服务端只返回名单内的，避免全量下发 */
+export async function getContacts(q = '', type = 'all', recent = 30, names = null) {
   const params = new URLSearchParams()
   if (q) params.set('q', q)
   if (type && type !== 'all') params.set('type', type)
-  if (recent && recent > 0) params.set('recent', recent)
+  if (names) {
+    params.set('names', names.join('\n'))
+  } else if (recent && recent > 0) {
+    params.set('recent', recent)
+  }
   const qs = params.toString()
   const resp = await fetch(`${WX_BASE}/api/contacts${qs ? '?' + qs : ''}`)
   if (!resp.ok) throw new Error(wxError(resp))

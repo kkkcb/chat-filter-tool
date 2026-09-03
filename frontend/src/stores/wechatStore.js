@@ -102,19 +102,18 @@ export const useWeChatStore = create((set, get) => ({
     const q = query.trim()
 
     if (!q) {
-      // 无搜索：只显示已收藏的联系人
+      // 无搜索：只显示已收藏的联系人 — 把名单发给服务端精确过滤，
+      // 不再为了几个收藏项拉全量（原来一次要传 ~800KB 的 6865 个联系人）
       if (savedNames.size === 0) {
         set({ contacts: [], loadingContacts: false, hasSearched: false })
         return
       }
       set({ loadingContacts: true })
       try {
-        // 拉全量，按收藏名单过滤（排除隐藏的）
-        const data = await getContacts('', typeFilter, 0)
-        const saved = (data.contacts || []).filter(c =>
-          savedNames.has(c.name) && !hiddenNames.has(c.name)
-        )
-        set({ contacts: sortContacts(saved), loadingContacts: false, hasSearched: false })
+        const saved = [...savedNames].filter(n => !hiddenNames.has(n))
+        const data = await getContacts('', typeFilter, 0, saved)
+        const matched = (data.contacts || []).filter(c => savedNames.has(c.name))
+        set({ contacts: sortContacts(matched), loadingContacts: false, hasSearched: false })
       } catch {
         set({ contacts: [], loadingContacts: false })
       }

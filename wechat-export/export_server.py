@@ -233,18 +233,26 @@ class ExportHandler(BaseHTTPRequestHandler):
             q = params.get('q', [''])[0].lower()
             filter_type = params.get('type', ['all'])[0]
             recent_days = params.get('recent', ['30'])[0]
+            # names: 换行分隔的精确名单（前端"已收藏"视图用，
+            # 避免为了几个收藏项把全量联系人发给浏览器）
+            names_filter = set(
+                n for n in params.get('names', [''])[0].split('\n') if n.strip()
+            )
 
             filtered = contacts
 
-            # 近期活跃过滤（默认开启，recent=0 或 recent=all 表示不过滤）
-            try:
-                days = int(recent_days)
-            except ValueError:
-                days = 30
-            if days > 0:
-                active = _get_active_usernames(days)
-                if active is not None:
-                    filtered = [c for c in filtered if c['username'] in active]
+            if names_filter:
+                filtered = [c for c in filtered if c['name'] in names_filter]
+            else:
+                # 近期活跃过滤（默认开启，recent=0 或 recent=all 表示不过滤）
+                try:
+                    days = int(recent_days)
+                except ValueError:
+                    days = 30
+                if days > 0:
+                    active = _get_active_usernames(days)
+                    if active is not None:
+                        filtered = [c for c in filtered if c['username'] in active]
 
             if filter_type == 'user':
                 filtered = [c for c in filtered if not c['is_group']]

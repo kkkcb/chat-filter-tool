@@ -9,6 +9,7 @@ import { useChatStore } from '../stores/chatStore'
 import { useVisionStore } from '../stores/visionStore'
 import { useMaterialStore } from '../stores/materialStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { getMessage } from '../api/conversations'
 import { useNoteStore } from '../stores/noteStore'
 import { summarizeConversation } from '../api/notes'
 import { useImagePaste } from '../hooks/useImagePaste'
@@ -60,7 +61,7 @@ export default function KnowledgeBase() {
   }
   useEffect(() => { scrollToBottom() }, [messages])
 
-  // 加载选中的对话历史
+  // 加载选中的对话历史（详情不再含 raw 大字段，双击时按需拉取）
   const handleSelectConv = async (id) => {
     clearMessages()
     const detail = await selectConversation(id)
@@ -73,11 +74,28 @@ export default function KnowledgeBase() {
           content: m.content,
           reasoning: m.reasoning,
           messageType: m.message_type,
-          rawRequest: m.raw_request,
-          rawResponse: m.raw_response,
           messageId: m.id,
         })),
       }))
+    }
+  }
+
+  // 双击消息 → 查看原始请求/返回（历史消息按需从服务端拉取 raw）
+  const openMessageDetail = async (msg) => {
+    const hasLocal = msg.rawRequest || msg.rawResponse
+    if (!hasLocal && !msg.messageId) return
+    setDetailModal({
+      rawRequest: msg.rawRequest || '',
+      rawResponse: msg.rawResponse || '',
+      loading: !hasLocal,
+    })
+    if (!hasLocal && msg.messageId) {
+      try {
+        const d = await getMessage(msg.messageId)
+        setDetailModal({ rawRequest: d.raw_request || '(无)', rawResponse: d.raw_response || '(无)', loading: false })
+      } catch {
+        setDetailModal({ rawRequest: '加载失败，请重试', rawResponse: '', loading: false })
+      }
     }
   }
 
@@ -217,7 +235,7 @@ export default function KnowledgeBase() {
               <MessageBubble key={msg.id ?? `idx-${i}`} msg={msg} index={i}
                 onConfirmSave={confirmSave} onDismissSave={dismissSave}
                 onRetry={retry}
-                onShowDetail={(rawReq, rawResp) => setDetailModal({ rawRequest: rawReq, rawResponse: rawResp })}
+                onShowDetail={openMessageDetail}
               />
             ))
           )}
@@ -290,14 +308,22 @@ export default function KnowledgeBase() {
               </button>
             </div>
             <div className="detail-modal-body">
-              <div className="detail-section">
-                <h4>请求 (Request)</h4>
-                <pre className="detail-code">{detailModal.rawRequest || '(无)'}</pre>
-              </div>
-              <div className="detail-section">
-                <h4>返回 (Response)</h4>
-                <pre className="detail-code">{detailModal.rawResponse || '(无)'}</pre>
-              </div>
+              {detailModal.loading ? (
+                <div className="pkb-view-loading" style={{ minHeight: 160 }}>
+                  <Loader2 size={18} strokeWidth={2.5} className="spin-icon" /> 加载原始数据...
+                </div>
+              ) : (
+                <>
+                  <div className="detail-section">
+                    <h4>请求 (Request)</h4>
+                    <pre className="detail-code">{detailModal.rawRequest || '(无)'}</pre>
+                  </div>
+                  <div className="detail-section">
+                    <h4>返回 (Response)</h4>
+                    <pre className="detail-code">{detailModal.rawResponse || '(无)'}</pre>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -411,8 +437,9 @@ function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onSh
   }
 
   const handleDoubleClick = () => {
-    if (!isUser && (msg.rawRequest || msg.rawResponse)) {
-      onShowDetail?.(msg.rawRequest, msg.rawResponse)
+    // 本会话消息直接用内存里的 raw；历史消息交给父组件按需拉取
+    if (!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId)) {
+      onShowDetail?.(msg)
     }
   }
 
@@ -425,14 +452,14 @@ function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onSh
         <div className="msg-name">
           {isUser ? '我' : '助手'}
           {!isUser && msg.streaming && <span className="msg-streaming-badge">生成中...</span>}
-          {!isUser && (msg.rawRequest || msg.rawResponse) && (
+          {!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) && (
             <span className="msg-detail-hint" title="双击查看原始请求/返回">双击查看详情</span>
           )}
         </div>
         <div
           className="msg-body"
           onDoubleClick={handleDoubleClick}
-          style={!isUser && (msg.rawRequest || msg.rawResponse) ? { cursor: 'pointer' } : {}}
+          style={!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) ? { cursor: 'pointer' } : {}}
         >
           {msg.image && <img className="vision-image" src={msg.image} alt="用户上传" />}
 

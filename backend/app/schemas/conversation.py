@@ -10,9 +10,9 @@ class MessageOut(BaseModel):
     reasoning: str = ""
     message_type: str = "chat"
     meta_json: str = "{}"
-    raw_request: str = ""
-    raw_response: str = ""
     created_at: str = ""
+    # raw_request/raw_response 体积大，不随对话详情下发，
+    # 由 GET /api/messages/{id} 按需拉取
 
 
 class ConversationOut(BaseModel):
