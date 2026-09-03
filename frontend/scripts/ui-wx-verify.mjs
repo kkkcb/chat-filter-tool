@@ -39,10 +39,10 @@ const scroll = await page.evaluate(() => {
 })
 console.log(`[2] 预览后滚动: 距底部 ${scroll.gap}px ${scroll.gap < 50 ? '→ 在底部(最新可见) ✅' : '→ 不在底部 ❌'}`)
 
-// 3. 日期分隔条
-const dividers = await page.evaluate(() =>
-  [...document.querySelectorAll('.wx-date-divider span')].map(e => e.textContent))
-console.log(`[3] 日期分隔条: ${dividers.length} 个, 示例: ${dividers.slice(-3).join(' / ')}`)
+// 3. 时间胶囊（间隔>5分钟或跨天才出现，数量应远小于消息数）
+const pills = await page.evaluate(() =>
+  [...document.querySelectorAll('.wx-time-pill')].map(e => e.textContent))
+console.log(`[3] 时间胶囊: ${pills.length} 个, 示例: ${pills.slice(-3).join(' / ')}`)
 
 // 4. 中栏宽度（未折叠 vs 折叠后）
 const midBefore = await page.evaluate(() => document.querySelector('.wx-col-mid').offsetWidth)

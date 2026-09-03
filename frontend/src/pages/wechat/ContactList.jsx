@@ -1,11 +1,12 @@
 import { Search, Users, User, Download, X, Inbox, Clock, SearchIcon, EyeOff } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useWeChatStore } from '../../stores/wechatStore'
+import WxAvatar from '../../components/WxAvatar'
 
 export default function ContactList() {
   const {
     contacts, query, typeFilter, loadingContacts,
-    selectedNames, activeContact, savedNames, recentFilter, hasSearched, loadingMessages,
+    selectedNames, activeContact, savedNames, recentFilter, hasSearched,
     contextMenu,
     setQuery, setTypeFilter, loadContacts, setRecentFilter,
     toggleSelect, clearSelected,
@@ -67,6 +68,37 @@ export default function ContactList() {
   const selectedCount = selectedNames.size
   const hasQuery = query.trim().length > 0
   const showGuide = !hasQuery && contacts.length === 0 && !loadingContacts
+  // 收藏视图（无搜索词时）顶部带一个小节标题
+  const savedView = !hasQuery && savedNames.size > 0
+
+  const renderContact = (c) => (
+    <div
+      key={c.username || c.name}
+      className={`wx-contact-item ${activeContact?.name === c.name ? 'active' : ''}`}
+      onClick={() => handleItemClick(c)}
+      onContextMenu={(e) => handleContextMenu(e, c.name)}
+    >
+      <span
+        className="wx-check"
+        data-checked={selectedNames.has(c.name)}
+        onClick={(e) => { e.stopPropagation(); toggleSelect(c.name) }}
+      />
+      <WxAvatar
+        kind={c.is_group ? 'group' : 'user'}
+        seed={c.name}
+        size={36}
+        text={c.name}
+      />
+      <div className="wx-contact-info">
+        <span className="wx-contact-name">{c.name}</span>
+        {c.remark && c.remark !== c.name && (
+          <span className="wx-contact-remark">{c.remark}</span>
+        )}
+      </div>
+      {c.is_group && <span className="wx-tag-mini">群</span>}
+      {!savedView && savedNames.has(c.name) && <span className="wx-saved-dot" title="已收藏" />}
+    </div>
+  )
 
   return (
     <div className="wx-col wx-col-left">
@@ -132,62 +164,15 @@ export default function ContactList() {
             <Inbox size={28} strokeWidth={1.5} />
             <p>没有找到 "{query}"</p>
           </div>
-        ) : !hasQuery && savedNames.size > 0 ? (
-          <>
-            <div className="wx-saved-header">
-              <span>已收藏 {contacts.length}</span>
-            </div>
-            {contacts.map((c) => (
-              <div
-                key={c.username || c.name}
-                className={`wx-contact-item ${activeContact?.name === c.name ? 'active' : ''}`}
-                onClick={() => handleItemClick(c)}
-                onContextMenu={(e) => handleContextMenu(e, c.name)}
-              >
-                <span
-                  className="wx-check"
-                  data-checked={selectedNames.has(c.name)}
-                  onClick={(e) => { e.stopPropagation(); toggleSelect(c.name) }}
-                />
-                <span className={`wx-avatar-mini ${c.is_group ? 'group' : 'user'}`}>
-                  {c.is_group ? <Users size={13} strokeWidth={2} /> : (c.name || '?').charAt(0)}
-                </span>
-                <div className="wx-contact-info">
-                  <span className="wx-contact-name">{c.name}</span>
-                  {c.remark && c.remark !== c.name && (
-                    <span className="wx-contact-remark">{c.remark}</span>
-                  )}
-                </div>
-                {c.is_group && <span className="wx-tag-mini">群</span>}
-              </div>
-            ))}
-          </>
         ) : contacts.length > 0 ? (
-          contacts.map((c) => (
-            <div
-              key={c.username || c.name}
-              className={`wx-contact-item ${activeContact?.name === c.name ? 'active' : ''}`}
-              onClick={() => handleItemClick(c)}
-              onContextMenu={(e) => handleContextMenu(e, c.name)}
-            >
-              <span
-                className="wx-check"
-                data-checked={selectedNames.has(c.name)}
-                onClick={(e) => { e.stopPropagation(); toggleSelect(c.name) }}
-              />
-              <span className={`wx-avatar-mini ${c.is_group ? 'group' : 'user'}`}>
-                {c.is_group ? <Users size={13} strokeWidth={2} /> : (c.name || '?').charAt(0)}
-              </span>
-              <div className="wx-contact-info">
-                <span className="wx-contact-name">{c.name}</span>
-                {c.remark && c.remark !== c.name && (
-                  <span className="wx-contact-remark">{c.remark}</span>
-                )}
+          <>
+            {savedView && (
+              <div className="wx-saved-header">
+                <span>已收藏 {contacts.length}</span>
               </div>
-              {c.is_group && <span className="wx-tag-mini">群</span>}
-              {savedNames.has(c.name) && <span className="wx-saved-dot" title="已收藏" />}
-            </div>
-          ))
+            )}
+            {contacts.map(renderContact)}
+          </>
         ) : null}
       </div>
 

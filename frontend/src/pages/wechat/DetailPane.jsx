@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useWeChatStore } from '../../stores/wechatStore'
 import CollectDialog from './CollectDialog'
+import WxAvatar from '../../components/WxAvatar'
 
 const TYPE_ICON = {
   image: ImageIcon, voice: Mic, video: Video, sticker: Smile,
@@ -22,30 +23,48 @@ const TYPE_LABEL = {
 const INITIAL_VISIBLE = 300
 const LOAD_MORE_STEP = 1000
 
-function fmtTime(ts) {
-  if (!ts) return ''
-  try {
-    return new Date(ts * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-  } catch { return '' }
-}
+/** 时间胶囊显示阈值：与微信一致，间隔超过 5 分钟或跨天才出现 */
+const TIME_GAP = 5 * 60
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+function pad2(n) { return n < 10 ? `0${n}` : String(n) }
+
 function dateKey(ts) {
   const d = new Date(ts * 1000)
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
-function dateLabel(ts) {
+
+/** 微信式时间胶囊文案：14:23 / 昨天 14:23 / 8月30日 周六 14:23 / 2024年8月30日 周六 14:23 */
+function pillLabel(ts) {
   const d = new Date(ts * 1000)
   const today = new Date()
   const yesterday = new Date(Date.now() - 86400000)
-  if (d.toDateString() === today.toDateString()) return '今天'
-  if (d.toDateString() === yesterday.toDateString()) return '昨天'
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${WEEKDAYS[d.getDay()]}`
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  if (d.toDateString() === today.toDateString()) return hm
+  if (d.toDateString() === yesterday.toDateString()) return `昨天 ${hm}`
+  const day = `${d.getMonth() + 1}月${d.getDate()}日`
+  const wd = ` ${WEEKDAYS[d.getDay()]}`
+  if (d.getFullYear() === today.getFullYear()) return `${day}${wd} ${hm}`
+  return `${d.getFullYear()}年${day}${wd} ${hm}`
+}
+
+/** 文本气泡内容：引用消息（"↳ 回复…"）拆出来渲染成内嵌引用块 */
+function BubbleText({ content, isQuote }) {
+  const t = content || ''
+  const idx = t.indexOf('\n  ↳ ')
+  if (idx < 0) return <span>{t}</span>
+  return (
+    <>
+      <span>{t.slice(0, idx)}</span>
+      <span className="wx-quote" data-me={isQuote || undefined}>{t.slice(idx + 5)}</span>
+    </>
+  )
 }
 
 export default function DetailPane() {
   const {
-    activeContact, messages, loadingMessages, previewProgress,
+    activeContact, messages, loadingMessages,
     selectedMsgs, exportFormat, exportTask, exporting,
     setExportFormat, exportSelected, toggleSelectMsg, clearSelectedMsgs,
     previewContact,
@@ -116,19 +135,24 @@ export default function DetailPane() {
     )
   }
 
+  const isGroup = !!activeContact.is_group
+
   return (
     <div className="wx-col wx-col-mid">
       {/* 联系人头部 */}
       <div className="wx-detail-header">
         <div className="wx-detail-contact">
-          <span className={`wx-avatar-mini ${activeContact.is_group ? 'group' : 'user'}`}>
-            {activeContact.is_group ? <MessageSquare size={13} /> : (activeContact.name || '?').charAt(0)}
-          </span>
+          <WxAvatar
+            kind={isGroup ? 'group' : 'user'}
+            seed={activeContact.name}
+            size={38}
+            text={activeContact.name}
+          />
           <div>
             <div className="wx-detail-name">{activeContact.name}</div>
             <div className="wx-detail-sub">
-              {activeContact.is_group ? '群聊' : '个人'}
-              {!loadingMessages && messages.length > 0 && ` · 共 ${messages.length} 条`}
+              {isGroup ? '群聊' : '个人'}
+              {!loadingMessages && messages.length > 0 && ` · ${messages.length} 条消息`}
             </div>
           </div>
         </div>
@@ -184,7 +208,7 @@ export default function DetailPane() {
       {error && <div className="wx-detail-error">{error}</div>}
 
       {/* 消息列表 + 吸底收集条 */}
-      <div className="wx-messages-wrap">
+      <div className={`wx-messages-wrap ${selectedCount > 0 ? 'selecting' : ''}`}>
         <div className="wx-messages" ref={messagesRef}>
           {loadingMessages ? (
             <div className="wx-messages-loading">
@@ -201,53 +225,83 @@ export default function DetailPane() {
               {/* 渲染窗口：默认最近 INITIAL_VISIBLE 条，避免大聊天卡死浏览器 */}
               {messages.length > visibleCount && (
                 <button className="wx-load-more" onClick={() => setVisibleCount(c => c + LOAD_MORE_STEP)}>
-                  <ChevronUp size={13} strokeWidth={2.2} />
-                  加载更早的消息（还有 {messages.length - visibleCount} 条）
+                  <ChevronUp size={12} strokeWidth={2.2} />
+                  查看更早的消息（还有 {messages.length - visibleCount} 条）
                 </button>
               )}
               {(() => {
                 const total = messages.length
                 const visible = total > visibleCount ? messages.slice(total - visibleCount) : messages
                 const startIndex = total - visible.length
-                let lastDate = null
+                let prevTs = 0
+                let prevKey = null
+                let prevSender = null
                 return visible.map((m, i) => {
                   const absIdx = startIndex + i // 选中状态使用全量数组下标，与收入素材库对齐
                   const isMe = m.sender === 'me'
                   const Icon = TYPE_ICON[m.type]
                   const isText = !m.type || m.type === 'text'
-                  // 日期分隔条（跨天时插入）
+                  const isSys = m.type === 'system' || m.type === 'recall'
+                  // 时间胶囊：首条 / 跨天 / 距上一条超过 5 分钟
                   const dk = m.timestamp ? dateKey(m.timestamp) : null
-                  const showDate = dk && dk !== lastDate
-                  if (dk) lastDate = dk
+                  const showTime = !!m.timestamp && (dk !== prevKey || (prevTs && m.timestamp - prevTs > TIME_GAP))
+                  if (dk) prevKey = dk
+                  if (m.timestamp) prevTs = m.timestamp
+                  // 同一人连续发言 → 收紧间距（微信式消息分组）
+                  const grouped = !isSys && !showTime && m.sender === prevSender
+                  prevSender = isSys ? null : m.sender
+
+                  if (isSys) {
+                    return (
+                      <div key={absIdx}>
+                        {showTime && <div className="wx-time-pill">{pillLabel(m.timestamp)}</div>}
+                        <div className="wx-sys-row">
+                          {m.type === 'recall' && <RotateCcw size={11} strokeWidth={2} />}
+                          <span>{m.content || TYPE_LABEL[m.type]}</span>
+                        </div>
+                      </div>
+                    )
+                  }
                   return (
                     <div key={absIdx}>
-                      {showDate && m.timestamp && (
-                        <div className="wx-date-divider"><span>{dateLabel(m.timestamp)}</span></div>
-                      )}
-                      <div className={`wx-msg-row ${isMe ? 'me' : 'other'}`}>
+                      {showTime && <div className="wx-time-pill">{pillLabel(m.timestamp)}</div>}
+                      <div className={`wx-msg-row ${isMe ? 'me' : 'other'} ${grouped ? 'grouped' : ''}`}>
                         <span
                           className="wx-check"
                           data-checked={selectedMsgs.has(absIdx)}
                           onClick={() => toggleSelectMsg(absIdx)}
                         />
-                        <span className={`wx-avatar-mini ${isMe ? 'user' : 'other'}`}>
-                          {isMe ? '我' : (m.sender || '?').charAt(0)}
-                        </span>
+                        <WxAvatar
+                          kind={isMe ? 'me' : 'user'}
+                          seed={isMe ? '__me__' : (m.sender || activeContact.name)}
+                          size={38}
+                          text={isMe ? '我' : (m.sender || '?')}
+                        />
                         <div className="wx-msg-main">
-                          <div className="wx-msg-meta">
-                            <span className="wx-msg-sender">{isMe ? '我' : (m.sender || activeContact.name)}</span>
-                            {m.timestamp && <span className="wx-msg-time">{fmtTime(m.timestamp)}</span>}
-                          </div>
-                          <div className={`wx-bubble ${isMe ? 'wx-bubble-me' : 'wx-bubble-other'}`}>
-                            {isText ? (
-                              <span>{m.content || ''}</span>
-                            ) : (
-                              <span className="wx-msg-special">
-                                {Icon && <Icon size={13} strokeWidth={2} />}
-                                {m.content || TYPE_LABEL[m.type] || m.type || '消息'}
-                              </span>
-                            )}
-                          </div>
+                          {isGroup && !isMe && <div className="wx-msg-sender">{m.sender}</div>}
+                          {(() => {
+                            // 图片/视频：微信式缩略占位块，不带气泡底
+                            if (!isText && (m.type === 'image' || m.type === 'video')) {
+                              return (
+                                <span className="wx-media-box">
+                                  {Icon && <Icon size={26} strokeWidth={1.6} />}
+                                  <span>{TYPE_LABEL[m.type]}</span>
+                                </span>
+                              )
+                            }
+                            return (
+                              <div className={`wx-bubble ${isMe ? 'wx-bubble-me' : 'wx-bubble-other'}`}>
+                                {isText ? (
+                                  <BubbleText content={m.content} isQuote={isMe} />
+                                ) : (
+                                  <span className="wx-msg-special">
+                                    {Icon && <Icon size={14} strokeWidth={2} />}
+                                    {m.content || TYPE_LABEL[m.type] || m.type || '消息'}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
                     </div>
