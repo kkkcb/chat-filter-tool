@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Hash, Inbox, Loader2, Check, Clock, FolderOpen,
+  Loader2, Check, Clock, FolderOpen,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
 import { getNote } from '../api/notes'
@@ -101,14 +101,13 @@ export default function PersonalKB() {
         </div>
       </div>
 
-      {/* 大分类过滤（分类之上的第一层；点选后可与搜索/标签叠加） */}
+      {/* 大分类：分段式标签页导航（第一层），可与搜索/标签叠加过滤 */}
       <div className="pkb-category-bar">
-        <FolderOpen size={13} strokeWidth={2} className="pkb-tags-icon" />
         <button
           className={`pkb-category-chip ${activeCategory === '' ? 'active' : ''}`}
           onClick={() => handleCategory('')}
         >
-          全部 <span className="pkb-tag-n">{stats.total}</span>
+          全部 <span className="pkb-cat-n">{stats.total}</span>
         </button>
         {categories.map(([name, count]) => (
           <button
@@ -116,7 +115,7 @@ export default function PersonalKB() {
             className={`pkb-category-chip ${activeCategory === name ? 'active' : ''}`}
             onClick={() => handleCategory(name)}
           >
-            {name} <span className="pkb-tag-n">{count}</span>
+            {name} <span className="pkb-cat-n">{count}</span>
           </button>
         ))}
         {uncategorized > 0 && (
@@ -124,15 +123,14 @@ export default function PersonalKB() {
             className={`pkb-category-chip dim ${activeCategory === '__none__' ? 'active' : ''}`}
             onClick={() => handleCategory('__none__')}
           >
-            未分类 <span className="pkb-tag-n">{uncategorized}</span>
+            未分类 <span className="pkb-cat-n">{uncategorized}</span>
           </button>
         )}
       </div>
 
-      {/* 标签过滤 */}
+      {/* 标签过滤（第二层：小彩色胶囊） */}
       {topTags.length > 0 && (
         <div className="pkb-tags-bar">
-          <Hash size={13} strokeWidth={2} className="pkb-tags-icon" />
           {topTags.map(([tag, count]) => {
             const c = tagColor(tag)
             return (
