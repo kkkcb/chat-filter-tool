@@ -55,6 +55,7 @@
 .pkb-masonry { columns:3 300px; column-gap:14px; max-width:1200px; margin:0 auto; }
 
 .pkb-card {
+  position:relative;
   break-inside:avoid; margin-bottom:14px; cursor:pointer;
   background:var(--bg-card); border:1px solid var(--border);
   border-radius:var(--radius-lg); padding:16px 18px;
@@ -67,6 +68,18 @@
   transform:translateY(-2px); border-color:var(--border-dark);
   box-shadow:var(--shadow-md);
 }
+
+/* 卡片右上角删除按钮（悬停浮现） */
+.pkb-card-delete {
+  position:absolute; top:10px; right:10px;
+  width:26px; height:26px; border:none; border-radius:var(--radius-sm);
+  background:var(--bg-card); color:var(--text-muted); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; box-shadow:var(--shadow-sm);
+  transition:all var(--duration-fast) var(--ease);
+}
+.pkb-card:hover .pkb-card-delete { opacity:1; }
+.pkb-card-delete:hover { color:var(--danger); background:rgba(220,38,38,.07); }
 .pkb-card-title {
   font-size:14px; font-weight:700; color:var(--text); line-height:1.5; margin-bottom:7px;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;

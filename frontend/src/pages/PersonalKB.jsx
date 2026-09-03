@@ -28,10 +28,12 @@ function fmtDate(iso) {
 }
 
 export default function PersonalKB() {
-  const { notes, stats, loading, loadNotes, refresh } = useNoteStore()
+  const { notes, stats, loading, loadNotes, refresh, removeNote } = useNoteStore()
   const [query, setQuery] = useState('')
   const [activeTag, setActiveTag] = useState('')
   const searchTimer = useRef(null)
+
+  const handleDelete = (note) => handleDeleteNote(note, removeNote)
 
   // 弹窗状态：null | {mode:'view', id} | {mode:'edit', id} | {mode:'create'}
   const [modal, setModal] = useState(null)
@@ -125,7 +127,12 @@ export default function PersonalKB() {
         ) : (
           <div className="pkb-masonry">
             {notes.map(n => (
-              <NoteCard key={n.id} note={n} onOpen={() => setModal({ mode: 'view', id: n.id })} />
+              <NoteCard
+                key={n.id}
+                note={n}
+                onOpen={() => setModal({ mode: 'view', id: n.id })}
+                onDelete={() => handleDelete(n)}
+              />
             ))}
           </div>
         )}
@@ -144,10 +151,28 @@ export default function PersonalKB() {
   )
 }
 
+/** 卡片上直接删除（带确认） */
+async function handleDeleteNote(note, removeNote) {
+  if (!window.confirm(`确定删除笔记「${note.title}」？`)) return
+  try {
+    await removeNote(note.id)
+    toast('笔记已删除', 'success')
+  } catch (e) {
+    toast(e?.message || '删除失败', 'error')
+  }
+}
+
 /* === 笔记卡片 === */
-function NoteCard({ note, onOpen }) {
+function NoteCard({ note, onOpen, onDelete }) {
   return (
     <div className="pkb-card" onClick={onOpen}>
+      <button
+        className="pkb-card-delete"
+        title="删除笔记"
+        onClick={(e) => { e.stopPropagation(); onDelete() }}
+      >
+        <Trash2 size={14} strokeWidth={2} />
+      </button>
       <div className="pkb-card-title">{note.title}</div>
       <div className="pkb-card-excerpt">{note.excerpt || '（空笔记）'}</div>
       {note.tags?.length > 0 && (
