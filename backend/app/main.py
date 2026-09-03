@@ -52,15 +52,24 @@ app.add_exception_handler(AppError, app_error_handler)
 
 
 # 全局访问令牌 + 按需放开 CORS：
-# - 纯本机模式（未设 APP_ACCESS_TOKEN）：/api 全放开，CORS 维持上面的白名单，
-#   仅 /api/kb（对外只读接口）额外放开跨源
-# - 公网部署模式（设了 APP_ACCESS_TOKEN）：所有 /api 需带 X-Access-Token /
-#   ?access_token= / Bearer（/api/health 放行探活），CORS 放开全部来源（有鉴权兜底）
+# - 本机直连（Host 为 localhost/127.0.0.1，含 Vite 代理）：免鉴权，CORS 维持白名单
+# - 公网域名（tunnel / 服务器，Host 为线上域名）：设了 APP_ACCESS_TOKEN 则所有
+#   /api 需带 X-Access-Token / ?access_token= / Bearer（/api/health 放行探活），
+#   并放开 CORS 供 Pages 前端跨源调用
+# 注：tunnel 流量经 cloudflared 从本机回源，client.host 恒为 127.0.0.1，
+# 因此用 Host 头（请求的目标域名）而非来源 IP 区分内外。
+_LOCAL_HOSTS = {"localhost:8000", "127.0.0.1:8000", "localhost:5173", "127.0.0.1:5173",
+                "localhost", "127.0.0.1", "[::1]:8000", "[::1]:5173"}
+
+
 @app.middleware("http")
 async def access_gate_and_cors(request: Request, call_next):
     path = request.url.path
+    host = (request.headers.get("host") or "").lower()
+    is_local = host in _LOCAL_HOSTS
     token = settings.app_access_token
-    open_cors = bool(token) or path.startswith("/api/kb")
+    needs_auth = bool(token) and not is_local
+    open_cors = needs_auth or path.startswith("/api/kb")
 
     if open_cors and path.startswith("/api") and request.method == "OPTIONS":
         from fastapi.responses import JSONResponse
@@ -73,7 +82,7 @@ async def access_gate_and_cors(request: Request, call_next):
             },
         )
 
-    if token and path.startswith("/api") and path != "/api/health":
+    if needs_auth and path.startswith("/api") and path != "/api/health":
         supplied = request.headers.get("x-access-token") or request.query_params.get("access_token") or ""
         if not supplied:
             auth = request.headers.get("authorization") or ""
@@ -81,7 +90,13 @@ async def access_gate_and_cors(request: Request, call_next):
                 supplied = auth[7:].strip()
         if supplied != token:
             from fastapi.responses import JSONResponse
-            return JSONResponse({"detail": "需要访问令牌"}, status_code=401)
+            # 401 也必须带 CORS 头，否则跨源前端 fetch 被浏览器拦截、
+            # 拿不到状态码，无法触发令牌输入弹窗
+            return JSONResponse(
+                {"detail": "需要访问令牌"},
+                status_code=401,
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
 
     response = await call_next(request)
     if open_cors and path.startswith("/api"):

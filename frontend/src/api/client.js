@@ -7,6 +7,9 @@ export function getAccessToken() {
   try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
 }
 
+/** 流式等原生 fetch 场景用的完整 API 前缀（含部署时的远端后端地址） */
+export const API_PREFIX = BASE
+
 export function setAccessToken(token) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token)

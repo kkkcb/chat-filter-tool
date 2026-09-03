@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { sendChat, confirmSave } from '../api/chat'
-import { getAccessToken } from '../api/client'
+import { getAccessToken, API_PREFIX } from '../api/client'
 
 // 消息唯一 id（比数组下标更适合作为 React key）
 let nextMsgId = 1
@@ -45,11 +45,11 @@ export const useChatStore = create((set, get) => ({
     set(state => ({ messages: [...state.messages, assistantMsg] }))
 
     try {
-      // 相对路径走 Vite 代理（开发）/ 同源（生产 build 由后端托管）
+      // API_PREFIX：本机走 Vite 代理/同源；部署形态指向远端后端（VITE_API_BASE）
       const streamHeaders = { 'Content-Type': 'application/json' }
       const accessToken = getAccessToken()
       if (accessToken) streamHeaders['X-Access-Token'] = accessToken
-      const resp = await fetch('/api/chat/stream', {
+      const resp = await fetch(`${API_PREFIX}/chat/stream`, {
         method: 'POST',
         headers: streamHeaders,
         body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, conversation_id: conversationId || null }),
