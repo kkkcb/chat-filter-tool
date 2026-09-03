@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { sendChat, confirmSave } from '../api/chat'
+import { getAccessToken } from '../api/client'
 
 // 消息唯一 id（比数组下标更适合作为 React key）
 let nextMsgId = 1
@@ -45,9 +46,12 @@ export const useChatStore = create((set, get) => ({
 
     try {
       // 相对路径走 Vite 代理（开发）/ 同源（生产 build 由后端托管）
+      const streamHeaders = { 'Content-Type': 'application/json' }
+      const accessToken = getAccessToken()
+      if (accessToken) streamHeaders['X-Access-Token'] = accessToken
       const resp = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: streamHeaders,
         body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, conversation_id: conversationId || null }),
         signal: abortController.signal,
       })
