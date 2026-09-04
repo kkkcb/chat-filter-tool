@@ -36,6 +36,14 @@ def init_db():
             conn.execute(text("ALTER TABLE notes ADD COLUMN category TEXT DEFAULT ''"))
             conn.commit()
 
+    # 存量分类种入分类表（分类一等公民化）
+    try:
+        with SessionLocal() as db:
+            from app.services.note_service import NoteService
+            NoteService(db).seed_categories()
+    except Exception as e:
+        print(f"[分类] 存量种子失败（不影响使用）: {e}")
+
     # 重建 FTS5 索引（捕获迁移/手工改动；失败则回退关键词扫描）
     from app.core import fts
     try:

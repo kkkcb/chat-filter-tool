@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.models.note import Note
+from app.models.note import Note, NoteCategory
 from app.models.conversation import Message
 from app.core.fts import bigramize
 from app.services.llm_service import llm_service
@@ -156,17 +156,85 @@ class NoteService:
                     tag_counter[t] = tag_counter.get(t, 0) + 1
             except (json.JSONDecodeError, TypeError):
                 continue
-        # 大分类计数（空串 = 未分类，前端单独显示）
-        cat_counter: dict[str, int] = {}
+        # 大分类计数：分类表（含空分类）∪ 笔记数据里的 distinct（未入库的兜底合并）
+        cat_counter: dict[str, int] = {c.name: 0 for c in self.db.query(NoteCategory).all()}
         for n in self.db.query(Note.category).all():
             name = (n[0] or "").strip()
-            cat_counter[name] = cat_counter.get(name, 0) + 1
+            if name:
+                cat_counter[name] = cat_counter.get(name, 0) + 1
+            else:
+                cat_counter[""] = cat_counter.get("", 0) + 1
         return {"total": total, "tags": tag_counter, "categories": cat_counter}
 
     def existing_categories(self) -> list[str]:
-        """已有分类名（去掉空串），供总结时 AI 选择/前端下拉建议"""
-        rows = self.db.query(Note.category).distinct().all()
-        return sorted({(r[0] or "").strip() for r in rows} - {""})
+        """已有分类名：分类表 ∪ 笔记数据 distinct，去空串"""
+        names = {c.name for c in self.db.query(NoteCategory).all()}
+        names |= {(r[0] or "").strip() for r in self.db.query(Note.category).distinct().all()}
+        return sorted(names - {""})
+
+    # ===== 分类管理 =====
+
+    def create_category(self, name: str) -> dict:
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("分类名不能为空")
+        if len(name) > 20:
+            raise ValueError("分类名过长（20 字以内）")
+        exists = self.db.query(NoteCategory).filter(NoteCategory.name == name).first()
+        if exists:
+            raise ValueError(f"分类「{name}」已存在")
+        c = NoteCategory(name=name)
+        self.db.add(c)
+        self.db.commit()
+        self.db.refresh(c)
+        return {"id": c.id, "name": c.name}
+
+    def rename_category(self, old: str, new: str) -> dict:
+        """重命名：更新分类表 + 批量改写该分类下所有笔记"""
+        old, new = (old or "").strip(), (new or "").strip()
+        if not new:
+            raise ValueError("分类名不能为空")
+        if new == old:
+            return {"renamed": 0, "name": new}
+        if self.db.query(NoteCategory).filter(NoteCategory.name == new).first():
+            raise ValueError(f"分类「{new}」已存在")
+        row = self.db.query(NoteCategory).filter(NoteCategory.name == old).first()
+        if row:
+            row.name = new
+        moved = (
+            self.db.query(Note)
+            .filter(Note.category == old)
+            .update({"category": new, "updated_at": datetime.now().isoformat()})
+        )
+        self.db.commit()
+        # 分类改名后重建受影响笔记的 FTS（分类名入索引文本）
+        for n in self.db.query(Note).filter(Note.category == new).all():
+            _fts_upsert(self.db, n)
+        return {"renamed": moved, "name": new}
+
+    def delete_category(self, name: str) -> dict:
+        """删除分类：该分类下的笔记归入未分类（笔记本身不删）"""
+        name = (name or "").strip()
+        moved = (
+            self.db.query(Note)
+            .filter(Note.category == name)
+            .update({"category": "", "updated_at": datetime.now().isoformat()})
+        )
+        row = self.db.query(NoteCategory).filter(NoteCategory.name == name).first()
+        if row:
+            self.db.delete(row)
+        self.db.commit()
+        for n in self.db.query(Note).filter(Note.category == "").all():
+            _fts_upsert(self.db, n)
+        return {"moved_to_uncategorized": moved}
+
+    def seed_categories(self) -> None:
+        """把笔记数据里已存在但未入分类表的名称种入表（首次升级/新库初始化）"""
+        data_names = {(r[0] or "").strip() for r in self.db.query(Note.category).distinct().all()} - {""}
+        table_names = {c.name for c in self.db.query(NoteCategory).all()}
+        for name in data_names - table_names:
+            self.db.add(NoteCategory(name=name))
+        self.db.commit()
 
     # ===== 检索（对话 RAG 用） =====
 

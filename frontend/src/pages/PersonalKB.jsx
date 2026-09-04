@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Loader2, Check, Clock, FolderOpen, Plug,
+  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
 import { getNote } from '../api/notes'
@@ -23,6 +23,19 @@ function tagColor(tag) {
   return TAG_COLORS[Math.abs(h) % TAG_COLORS.length]
 }
 
+/** 分类配色 — 与标签同思路但用另一组色相，区分层级 */
+const CAT_COLORS = [
+  { bg: '#e8f4fd', fg: '#0369a1', bar: '#0284c7' }, { bg: '#ecfdf5', fg: '#047857', bar: '#059669' },
+  { bg: '#fef3e2', fg: '#b45309', bar: '#d97706' }, { bg: '#f3e8ff', fg: '#7e22ce', bar: '#9333ea' },
+  { bg: '#fde8ef', fg: '#be185d', bar: '#db2777' }, { bg: '#eef2ff', fg: '#4338ca', bar: '#4f46e5' },
+  { bg: '#ecfeff', fg: '#0e7490', bar: '#0891b2' }, { bg: '#f1f5f9', fg: '#475569', bar: '#64748b' },
+]
+function catColor(name) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0
+  return CAT_COLORS[Math.abs(h) % CAT_COLORS.length]
+}
+
 /** 编辑弹窗里分类输入框的候选建议（已有分类之外的首选示例） */
 const CATEGORY_SUGGESTIONS = ['技术原理', '个人规划', '踩坑记录', '灵感想法']
 
@@ -34,10 +47,15 @@ function fmtDate(iso) {
 }
 
 export default function PersonalKB() {
-  const { notes, stats, loading, loadNotes, refresh, removeNote } = useNoteStore()
+  const { notes, stats, loading, loadNotes, refresh, removeNote,
+          newCategory, doRenameCategory, doDeleteCategory } = useNoteStore()
   const [query, setQuery] = useState('')
   const [activeTag, setActiveTag] = useState('')
   const [activeCategory, setActiveCategory] = useState('')
+  const [creating, setCreating] = useState(false)      // 分类条内联新建输入框
+  const [newCatName, setNewCatName] = useState('')
+  const [renaming, setRenaming] = useState(null)       // 正在重命名的分类名
+  const [renameValue, setRenameValue] = useState('')
   const searchTimer = useRef(null)
 
   const handleDelete = (note) => handleDeleteNote(note, removeNote)
@@ -72,6 +90,54 @@ export default function PersonalKB() {
     const next = activeCategory === cat ? '' : cat
     setActiveCategory(next)
     reload(query.trim(), activeTag, next)
+  }
+
+  // ===== 分类管理 =====
+
+  const submitNewCategory = async () => {
+    const name = newCatName.trim()
+    setCreating(false); setNewCatName('')
+    if (!name) return
+    try {
+      await newCategory(name)
+      toast(`已创建分类「${name}」`, 'success')
+    } catch (e) {
+      toast(e?.message || '创建失败', 'error')
+    }
+  }
+
+  const submitRename = async () => {
+    const old = renaming
+    const name = renameValue.trim()
+    setRenaming(null); setRenameValue('')
+    if (!old || !name || name === old) return
+    try {
+      await doRenameCategory(old, name)
+      if (activeCategory === old) { setActiveCategory(name); reload(query.trim(), activeTag, name) }
+      toast(`「${old}」已重命名为「${name}」`, 'success')
+    } catch (e) {
+      toast(e?.message || '重命名失败', 'error')
+    }
+  }
+
+  const handleDeleteCategory = async (name) => {
+    const count = (stats.categories || {})[name] || 0
+    const ok = await confirmDialog({
+      title: '删除分类',
+      message: count > 0
+        ? `「${name}」下有 ${count} 篇笔记，删除分类后这些笔记将归入"未分类"（笔记本身保留）`
+        : `删除空分类「${name}」？`,
+      confirmText: '删除',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await doDeleteCategory(name)
+      if (activeCategory === name) { setActiveCategory(''); reload(query.trim(), activeTag, '') }
+      toast('分类已删除', 'success')
+    } catch (e) {
+      toast(e?.message || '删除失败', 'error')
+    }
   }
 
   const topTags = Object.entries(stats.tags || {})
@@ -114,21 +180,67 @@ export default function PersonalKB() {
         >
           全部 <span className="pkb-cat-n">{stats.total}</span>
         </button>
-        {categories.map(([name, count]) => (
-          <button
-            key={name}
-            className={`pkb-category-chip ${activeCategory === name ? 'active' : ''}`}
-            onClick={() => handleCategory(name)}
-          >
-            {name} <span className="pkb-cat-n">{count}</span>
-          </button>
-        ))}
+        {categories.map(([name, count]) => {
+          const c = catColor(name)
+          return renaming === name ? (
+            <input
+              key={name}
+              className="pkb-cat-rename"
+              value={renameValue}
+              autoFocus
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={submitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitRename()
+                if (e.key === 'Escape') { setRenaming(null) }
+              }}
+            />
+          ) : (
+            <span key={name} className={`pkb-cat-wrap ${activeCategory === name ? 'active' : ''}`}
+              style={activeCategory === name ? { background: c.bg } : undefined}>
+              <button
+                className={`pkb-category-chip ${activeCategory === name ? 'active' : ''}`}
+                style={activeCategory === name ? { color: c.fg, borderColor: c.bar } : undefined}
+                onClick={() => handleCategory(name)}
+              >
+                <span className="pkb-cat-dot" style={{ background: c.bar }} />
+                {name} <span className="pkb-cat-n">{count}</span>
+              </button>
+              <span className="pkb-cat-ops">
+                <button title="重命名" onClick={(e) => { e.stopPropagation(); setRenaming(name); setRenameValue(name) }}>
+                  <Pencil size={10} strokeWidth={2.2} />
+                </button>
+                <button title="删除分类" onClick={(e) => { e.stopPropagation(); handleDeleteCategory(name) }}>
+                  <Trash2 size={10} strokeWidth={2.2} />
+                </button>
+              </span>
+            </span>
+          )
+        })}
         {uncategorized > 0 && (
           <button
             className={`pkb-category-chip dim ${activeCategory === '__none__' ? 'active' : ''}`}
             onClick={() => handleCategory('__none__')}
           >
             未分类 <span className="pkb-cat-n">{uncategorized}</span>
+          </button>
+        )}
+        {creating ? (
+          <input
+            className="pkb-cat-rename"
+            placeholder="分类名..."
+            value={newCatName}
+            autoFocus
+            onChange={(e) => setNewCatName(e.target.value)}
+            onBlur={submitNewCategory}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitNewCategory()
+              if (e.key === 'Escape') { setCreating(false); setNewCatName('') }
+            }}
+          />
+        ) : (
+          <button className="pkb-cat-add" title="新建分类" onClick={() => setCreating(true)}>
+            <FolderPlus size={12} strokeWidth={2.2} /> 新建
           </button>
         )}
       </div>
@@ -233,7 +345,10 @@ function NoteCard({ note, onOpen, onDelete }) {
         <Trash2 size={14} strokeWidth={2} />
       </button>
       <div className="pkb-card-title">{note.title}</div>
-      {note.category && <span className="pkb-card-category"><FolderOpen size={10} strokeWidth={2.2} /> {note.category}</span>}
+      {note.category && (() => {
+        const c = catColor(note.category)
+        return <span className="pkb-card-category" style={{ background: c.bg, color: c.fg }}><FolderOpen size={10} strokeWidth={2.2} /> {note.category}</span>
+      })()}
       <div className="pkb-card-excerpt">{note.excerpt || '（空笔记）'}</div>
       {note.tags?.length > 0 && (
         <div className="pkb-card-tags">
@@ -404,9 +519,10 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
             <h3 className="pkb-view-title">{note?.title}</h3>
             {(note?.category || note?.tags?.length > 0) && (
               <div className="pkb-view-tags">
-                {note?.category && (
-                  <span className="pkb-view-category"><FolderOpen size={11} strokeWidth={2.2} /> {note.category}</span>
-                )}
+                {note?.category && (() => {
+                  const c = catColor(note.category)
+                  return <span className="pkb-view-category" style={{ background: c.bg, color: c.fg }}><FolderOpen size={11} strokeWidth={2.2} /> {note.category}</span>
+                })()}
                 {note?.tags?.map(t => {
                   const c = tagColor(t)
                   return <span key={t} className="pkb-mini-tag" style={{ background: c.bg, color: c.fg }}># {t}</span>

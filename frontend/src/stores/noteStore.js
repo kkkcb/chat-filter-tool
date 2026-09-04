@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   getNotes, getNoteStats, createNote, updateNote, deleteNote,
+  createCategory, renameCategory, deleteCategory,
 } from '../api/notes'
 
 export const useNoteStore = create((set, get) => ({
@@ -40,6 +41,23 @@ export const useNoteStore = create((set, get) => ({
 
   removeNote: async (id) => {
     await deleteNote(id)
+    await get().refresh()
+  },
+
+  // ===== 分类管理 =====
+
+  newCategory: async (name) => {
+    await createCategory(name)
+    await get().loadStats()
+  },
+
+  doRenameCategory: async (name, newName) => {
+    await renameCategory(name, newName)
+    await get().refresh()
+  },
+
+  doDeleteCategory: async (name) => {
+    await deleteCategory(name)
     await get().refresh()
   },
 }))

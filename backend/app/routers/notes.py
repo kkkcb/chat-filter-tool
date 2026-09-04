@@ -1,5 +1,6 @@
 """个人知识库笔记路由"""
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -7,6 +8,42 @@ from app.services.note_service import NoteService
 from app.schemas.note import NoteCreate, NoteUpdate, SummarizeRequest
 
 router = APIRouter()
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+
+class CategoryRename(BaseModel):
+    new_name: str
+
+
+@router.get("/notes/categories")
+async def list_categories(db: Session = Depends(get_db)):
+    """分类清单（分类表 ∪ 笔记数据 distinct）"""
+    return {"categories": NoteService(db).existing_categories()}
+
+
+@router.post("/notes/categories")
+async def create_category(req: CategoryCreate, db: Session = Depends(get_db)):
+    try:
+        return NoteService(db).create_category(req.name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/notes/categories/{name}")
+async def rename_category(name: str, req: CategoryRename, db: Session = Depends(get_db)):
+    try:
+        return NoteService(db).rename_category(name, req.new_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/notes/categories/{name}")
+async def delete_category(name: str, db: Session = Depends(get_db)):
+    """删除分类：其下笔记归入未分类"""
+    return NoteService(db).delete_category(name)
 
 
 @router.get("/notes")

@@ -26,3 +26,16 @@ export const summarizeConversation = (conversationId, instruction = '') =>
     method: 'POST',
     body: JSON.stringify({ conversation_id: conversationId, instruction }),
   })
+
+/** 分类管理（分类一等公民：新建/重命名/删除） */
+export const getCategories = () => request('/notes/categories')
+
+export const createCategory = (name) =>
+  request('/notes/categories', { method: 'POST', body: JSON.stringify({ name }) })
+
+export const renameCategory = (name, newName) =>
+  request(`/notes/categories/${encodeURIComponent(name)}`, {
+    method: 'PATCH', body: JSON.stringify({ new_name: newName }) })
+
+export const deleteCategory = (name) =>
+  request(`/notes/categories/${encodeURIComponent(name)}`, { method: 'DELETE' })
