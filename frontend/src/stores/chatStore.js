@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { sendChat, confirmSave } from '../api/chat'
 import { getAccessToken, API_PREFIX } from '../api/client'
+import { updateMessageContent } from '../api/conversations'
 
 // 消息唯一 id（比数组下标更适合作为 React key）
 let nextMsgId = 1
@@ -237,13 +238,14 @@ export const useChatStore = create((set, get) => ({
 
     try {
       const data = await confirmSave(msg.entry)
+      const newContent = msg.content.replace('**是否保存到知识库？**', `**${data.message}**`)
       set(state => ({
         messages: state.messages.map((m, i) =>
-          i === messageIndex
-            ? { ...m, saveState: 'saved', content: m.content.replace('**是否保存到知识库？**', `**${data.message}**`) }
-            : m
+          i === messageIndex ? { ...m, saveState: 'saved', content: newContent } : m
         ),
       }))
+      // 回写服务端：库里存的还是"是否保存？"原文，不回写的话刷新后会再问一遍
+      if (msg.messageId) updateMessageContent(msg.messageId, newContent).catch(() => {})
     } catch (err) {
       const errMsg = err?.message || '保存失败'
       set(state => ({
@@ -255,13 +257,14 @@ export const useChatStore = create((set, get) => ({
   },
 
   dismissSave: (messageIndex) => {
+    const msg = get().messages[messageIndex]
+    const newContent = (msg?.content || '').replace('**是否保存到知识库？**', '**未保存**')
     set(state => ({
       messages: state.messages.map((m, i) =>
-        i === messageIndex
-          ? { ...m, saveState: 'dismissed', content: m.content.replace('**是否保存到知识库？**', '**未保存**') }
-          : m
+        i === messageIndex ? { ...m, saveState: 'dismissed', content: newContent } : m
       ),
     }))
+    if (msg?.messageId) updateMessageContent(msg.messageId, newContent).catch(() => {})
   },
 
   clearMessages: () => set({ messages: [], lastSendParams: null }),

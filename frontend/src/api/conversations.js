@@ -26,3 +26,7 @@ export const reorderConversations = (orderedIds) =>
 /** 删除单条消息（聊天中单句删除） */
 export const deleteMessage = (id) =>
   request(`/messages/${id}`, { method: 'DELETE' })
+
+/** 更新单条消息内容（交互后回写状态文案，如"已保存到知识库"） */
+export const updateMessageContent = (id, content) =>
+  request(`/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ content }) })

@@ -1,6 +1,7 @@
 """对话历史路由"""
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 
@@ -106,6 +107,24 @@ async def delete_message(message_id: int, db: Session = Depends(get_db)):
     db.delete(m)
     db.commit()
     return {"success": True, "message": "已删除"}
+
+
+class MessageContentUpdate(BaseModel):
+    content: str
+
+
+@router.patch("/messages/{message_id}")
+async def update_message_content(message_id: int, req: MessageContentUpdate, db: Session = Depends(get_db)):
+    """更新单条消息内容 — 供前端在交互后回写状态文案（如"已保存到知识库"），
+    避免刷新后库里还是旧的"是否保存？"提示"""
+    from datetime import datetime as dt
+    m = db.query(Message).filter(Message.id == message_id).first()
+    if not m:
+        raise HTTPException(404, "消息不存在")
+    m.content = req.content
+    m.updated_at = dt.now().isoformat() if hasattr(m, "updated_at") else None
+    db.commit()
+    return {"success": True}
 
 
 @router.patch("/conversations/{conv_id}", response_model=ConversationOut)
