@@ -101,7 +101,7 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
             msg_data = None
 
             async for event_type, event_data in svc.handle_message_stream(
-                req.message, req.image, req.mode, req.thinking or False, history=history
+                req.message, req.image, req.mode, req.thinking or False, history=history, use_rag=req.use_rag if req.use_rag is not None else True
             ):
                 if isinstance(event_data, (dict, list)):
                     payload_data = event_data
