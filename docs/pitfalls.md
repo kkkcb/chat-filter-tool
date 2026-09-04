@@ -95,6 +95,12 @@
 
 ## 部署 / 云
 
+### 部署脚本"假成功"：sftp 相对路径 + stderr 过滤吞掉解包失败
+- **现象**：deploy-vps.sh 输出"部署完成 health OK"，但线上删消息报 405 Method Not Allowed——后端还是旧代码
+- **根因**：三重叠加——① paramiko sftp.put 的相对路径落在登录家目录 `/root`，不是脚本 cwd；② 解包命令 `cd /opt/... && tar xzf ./xxx.tar.gz` 在目标目录找不到包；③ 错误处理把 `tar:` 开头的 stderr 全过滤，返回码也没检查 → 静默失败还报成功。405 而非 404 是"同路径 GET 存在、DELETE 未注册"的典型信号
+- **解决**：上传/解包全部绝对路径；逐条检查命令返回码非零即中止；打包时写入 `DEPLOY_VERSION`（git SHA），部署后回读比对，不一致判失败
+- 日期：2026-09-04 · 用户删"流式测试"消息时暴露
+
 ### 腾讯云轻量上 iptables 80→8000 REDIRECT 返回云层 502
 - **现象**：PREROUTING REDIRECT 到 127.0.0.1:8000 后公网访问 80 得到空 body 502（无 Server 头）
 - **根因**：云平台网络层对该转发路径的行为，非本机 nginx
