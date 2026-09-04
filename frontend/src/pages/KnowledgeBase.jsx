@@ -148,34 +148,42 @@ export default function KnowledgeBase() {
     if ((!text && !selectedImage) || isSending) return
 
     // === 对话式指令拦截：保存类的话直接执行，不再发给 AI 空转 ===
-    // 1) 「保存为笔记 / 总结为笔记 / 保存到笔记」→ 总结当前对话入库
-    if (/^(请|帮我)?(保存|总结|存|记)(为|到|成)?(一|这)?(篇|个)?(笔记|个人知识库)/.test(text)
-        || text.includes('总结为笔记') || text.includes('保存到笔记') || text.includes('存为笔记')) {
+    // 保存目标判定：有待决链接 → 存链接；否则「保存」→ 默认总结当前对话为笔记
+    const lastMsg = messages[messages.length - 1]
+    const hasPendingLink = lastMsg?.role === 'assistant' && lastMsg.action === 'confirm_save' && !lastMsg.saveState
+    const saveNoteIntent = /^(请|帮我)?(保存|总结|存|记)(为|到|成)?(一|这)?(篇|个)?(笔记|个人知识库)/.test(text)
+      || text.includes('总结为笔记') || text.includes('保存到笔记') || text.includes('存为笔记')
+    const bareSaveIntent = /^(请)?(保存|存一下|保存一下|收藏一下)(吧)?$/.test(text) && !hasPendingLink
+
+    // 1) 保存为笔记（明确说了笔记，或裸「保存」且没有待决链接 → 默认存本对话）
+    if (saveNoteIntent || bareSaveIntent) {
       setInput(''); resize()
       const convId = activeId || conversations[0]?.id
       if (!convId) { toast('当前没有可总结的对话', 'error'); return }
-      // 在消息流里显示一条轻提示，让"保存"有对话感
-      useChatStore.setState(s => ({ messages: [...s.messages, { id: Date.now(), role: 'assistant', content: '📌 正在把本对话总结为笔记…' }] }))
+      // 在消息流里显示一条轻提示，让"保存"有对话感（裸「保存」时说明默认目标）
+      const hint = bareSaveIntent && !saveNoteIntent
+        ? '📌 本对话没有待保存的链接，已默认把本对话总结为笔记…'
+        : '📌 正在把本对话总结为笔记…'
+      useChatStore.setState(s => ({ messages: [...s.messages, { id: Date.now(), role: 'assistant', content: hint }] }))
       setSummarizing(true)
       try {
         const data = await summarizeConversation(convId)
         toast(`已保存笔记「${data.note.title}」`, 'success', 4000)
         useChatStore.setState(s => ({
-          messages: s.messages.map(m => m.content === '📌 正在把本对话总结为笔记…'
+          messages: s.messages.map(m => m.content === hint
             ? { ...m, content: `📌 已保存笔记「${data.note.title}」（可在 个人知识库 查看）` } : m),
         }))
         loadNoteStats()
       } catch (e) {
         toast(e?.message || '总结失败，请重试', 'error')
-        useChatStore.setState(s => ({ messages: s.messages.filter(m => m.content !== '📌 正在把本对话总结为笔记…') }))
+        useChatStore.setState(s => ({ messages: s.messages.filter(m => m.content !== hint) }))
       }
       setSummarizing(false)
       return
     }
 
     // 2) 待决的链接收藏：直接说「保存 / 保存到素材库 / 不保存」即可确认或取消
-    const lastMsg = messages[messages.length - 1]
-    if (lastMsg?.role === 'assistant' && lastMsg.action === 'confirm_save' && !lastMsg.saveState) {
+    if (hasPendingLink) {
       const wantsSave = /^(好|嗯|要|存|保存|确认|收藏|可以|yes|ok)/i.test(text) || /保存到|收藏到|存到/.test(text)
       const wantsNo = /^(不|别|取消|不用|算了|no)/i.test(text)
       if (wantsSave && !wantsNo) {
