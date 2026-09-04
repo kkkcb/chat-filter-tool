@@ -22,3 +22,7 @@ export const deleteConversation = (id) =>
 
 export const reorderConversations = (orderedIds) =>
   request('/conversations/reorder', { method: 'POST', body: JSON.stringify({ ordered_ids: orderedIds }) })
+
+/** 删除单条消息（聊天中单句删除） */
+export const deleteMessage = (id) =>
+  request(`/messages/${id}`, { method: 'DELETE' })

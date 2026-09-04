@@ -17,6 +17,11 @@ export const useChatStore = create((set, get) => ({
 
   toggleDeepThinking: () => set(state => ({ deepThinking: !state.deepThinking })),
 
+  // 单句删除：从列表移除（有 messageId 的会同时已在服务端删除）
+  removeMessage: (localId) => set(state => ({
+    messages: state.messages.filter(m => m.id !== localId),
+  })),
+
   sendMessage: async (text, image, mode, conversationId, onComplete) => {
     if ((!text && !image) || get().isSending) return
 
@@ -84,6 +89,15 @@ export const useChatStore = create((set, get) => ({
               get()._updateLastMsg(set, { typing: true })
               if (evt.conversation_id && onComplete) {
                 onComplete(evt.conversation_id)
+              }
+              // 服务端返回用户消息 ID（前端支持单句删除）
+              if (evt.user_message_id) {
+                get()._updateMsgById(set, userMsg.id, { messageId: evt.user_message_id })
+              }
+            } else if (evt.type === 'saved') {
+              // 助手消息已入库，记录服务端 ID（支持单句删除/懒加载 raw）
+              if (evt.message_id) {
+                get()._updateLastMsg(set, { messageId: evt.message_id })
               }
             } else if (evt.type === 'reasoning') {
               fullReasoning += evt.data
@@ -187,6 +201,12 @@ export const useChatStore = create((set, get) => ({
       messages: state.messages.map((m, i) =>
         i === state.messages.length - 1 ? { ...m, ...updates } : m
       ),
+    }))
+  },
+
+  _updateMsgById: (setFn, localId, updates) => {
+    setFn(state => ({
+      messages: state.messages.map(m => m.id === localId ? { ...m, ...updates } : m),
     }))
   },
 

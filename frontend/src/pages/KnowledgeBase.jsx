@@ -16,6 +16,8 @@ import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown } from '../utils/markdown'
 import { toast } from '../components/Toast'
+import { confirmDialog } from '../components/Confirm'
+import { deleteMessage } from '../api/conversations'
 import './KnowledgeBase.css'
 
 const VISION_MODES = [
@@ -28,7 +30,7 @@ const VISION_MODES = [
 ]
 
 export default function KnowledgeBase() {
-  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking } = useChatStore()
+  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, removeMessage } = useChatStore()
   const { selectedImage, selectedMode, setImage, setMode, clear } = useVisionStore()
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
@@ -77,6 +79,32 @@ export default function KnowledgeBase() {
           messageId: m.id,
         })),
       }))
+    }
+  }
+
+  // 单句删除：应用内确认 → 服务端删除 → 本地移除
+  const handleDeleteMessage = async (msg) => {
+    if (!msg.messageId) return
+    const preview = (msg.content || '').slice(0, 30).replace(/\s+/g, ' ')
+    const ok = await confirmDialog({
+      title: '删除这条消息',
+      message: `「${preview}${(msg.content || '').length > 30 ? '...' : ''}」删除后不可恢复，且后续对话不再携带它作为上下文`,
+      confirmText: '删除',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await deleteMessage(msg.messageId)
+      removeMessage(msg.id)
+      // 消息删光后自动清掉空壳对话（标题等残留没意义）
+      if (messages.length === 1 && activeId) {
+        await removeConversation(activeId)
+      } else {
+        refreshAfterMessage()
+      }
+      toast('消息已删除', 'success')
+    } catch (e) {
+      toast(e?.message || '删除失败', 'error')
     }
   }
 
@@ -236,6 +264,7 @@ export default function KnowledgeBase() {
                 onConfirmSave={confirmSave} onDismissSave={dismissSave}
                 onRetry={retry}
                 onShowDetail={openMessageDetail}
+                onDelete={() => handleDeleteMessage(msg)}
               />
             ))
           )}
@@ -417,8 +446,8 @@ function ConvItem({ conv, index, isActive, onSelect, onRename, onDelete, onDragR
   )
 }
 
-/* === 消息气泡（支持流式 + 思考过程 + 双击查看原始数据） === */
-function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail }) {
+/* === 消息气泡（支持流式 + 思考过程 + 双击查看原始数据 + 单句删除） === */
+function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete }) {
   const isUser = msg.role === 'user'
   const [showReasoning, setShowReasoning] = useState(true)
 
@@ -454,6 +483,16 @@ function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onSh
           {!isUser && msg.streaming && <span className="msg-streaming-badge">生成中...</span>}
           {!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) && (
             <span className="msg-detail-hint" title="双击查看原始请求/返回">双击查看详情</span>
+          )}
+          {/* 单句删除：消息已入库（有服务端 id）且不在流式生成中才可删 */}
+          {msg.messageId && !msg.streaming && !msg.typing && onDelete && (
+            <button
+              className="msg-delete-btn"
+              title="删除这条消息"
+              onClick={onDelete}
+            >
+              <Trash2 size={11} strokeWidth={2} />
+            </button>
           )}
         </div>
         <div

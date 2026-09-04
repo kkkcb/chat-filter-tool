@@ -43,5 +43,6 @@ wechat-export.zip
 .access-token.txt
 
 # 部署运行时产物
-tools/tunnel.log
+tools/*
 backend/backend.log
+.deploy-ice-*.tar.gz

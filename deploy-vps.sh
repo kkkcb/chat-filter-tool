@@ -10,7 +10,7 @@ VPS_IP="${VPS_IP:-YOUR_VPS_IP}"
 VPS_USER="${VPS_USER:-root}"
 
 echo "→ 打包本机代码"
-tar czf /tmp/ice-code.tar.gz --exclude='__pycache__' --exclude='backend.log' --exclude='venv' \
+tar czf ./.deploy-ice-code.tar.gz --exclude='__pycache__' --exclude='backend.log' --exclude='venv' \
   --exclude='migrations' backend/app backend/requirements.txt
 WITH_DATA="${1:-}"
 
@@ -23,21 +23,21 @@ with_data = os.environ.get("WITH_DATA") == "--data"
 pw = os.environ.get("VPS_PW") or input("VPS 密码: ")
 
 if with_data:
-    with tarfile.open("/tmp/ice-data.tar.gz", "w:gz") as t:
+    with tarfile.open("./.deploy-ice-data.tar.gz", "w:gz") as t:
         t.add("data"); t.add("../inbox", arcname="inbox") if os.path.isdir("../inbox") else None
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect(ip, username=user, password=pw, timeout=15)
 sftp = ssh.open_sftp()
-sftp.put("/tmp/ice-code.tar.gz", "/tmp/ice-code.tar.gz")
+sftp.put("./.deploy-ice-code.tar.gz", "./.deploy-ice-code.tar.gz")
 if with_data:
-    sftp.put("/tmp/ice-data.tar.gz", "/tmp/ice-data.tar.gz")
+    sftp.put("./.deploy-ice-data.tar.gz", "./.deploy-ice-data.tar.gz")
 sftp.close()
 
-cmds = ["cd /opt/ice-workbench && tar xzf /tmp/ice-code.tar.gz"]
+cmds = ["cd /opt/ice-workbench && tar xzf ./.deploy-ice-code.tar.gz"]
 if with_data:
-    cmds.append("cd /opt/ice-workbench && tar xzf /tmp/ice-data.tar.gz")
+    cmds.append("cd /opt/ice-workbench && tar xzf ./.deploy-ice-data.tar.gz")
 cmds += ["systemctl restart ice-workbench", "sleep 3",
          "systemctl is-active ice-workbench && curl -s http://127.0.0.1/api/health"]
 for c in cmds:

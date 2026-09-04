@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.conversation import Message
 from app.schemas.chat import ChatRequest, ChatResponse, SaveConfirmRequest, SaveConfirmResponse
 from app.services.chat_service import ChatService
 from app.services.material_service import MaterialService
@@ -92,8 +93,8 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
 
     async def event_stream():
         try:
-            # 先发对话 ID 和连接建立信号
-            yield f'data: {json.dumps({"type": "start", "data": "", "conversation_id": conv_id}, ensure_ascii=False)}\n\n'
+            # 先发对话 ID、用户消息 ID 和连接建立信号（前端据此支持单句删除）
+            yield f'data: {json.dumps({"type": "start", "data": "", "conversation_id": conv_id, "user_message_id": user_msg.id}, ensure_ascii=False)}\n\n'
 
             full_content = ""
             full_reasoning = ""
@@ -134,6 +135,11 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
                 raw_request=raw_request,
                 raw_response=raw_response,
             )
+            # 通知前端该条助手消息的服务端 ID（支持单句删除/懒加载 raw）
+            last_id = db.query(Message.id).filter(
+                Message.conversation_id == conv_id
+            ).order_by(Message.id.desc()).limit(1).scalar()
+            yield f'data: {json.dumps({"type": "saved", "data": "", "message_id": last_id}, ensure_ascii=False)}\n\n'
 
         except Exception as e:
             yield f'data: {json.dumps({"type": "error", "data": str(e)}, ensure_ascii=False)}\n\n'

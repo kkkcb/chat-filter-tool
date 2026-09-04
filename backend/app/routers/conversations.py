@@ -97,6 +97,17 @@ async def get_message_raw(message_id: int, db: Session = Depends(get_db)):
     }
 
 
+@router.delete("/messages/{message_id}")
+async def delete_message(message_id: int, db: Session = Depends(get_db)):
+    """删除单条消息（不影响同对话其他消息；下一条对话的上下文随之缩短）"""
+    m = db.query(Message).filter(Message.id == message_id).first()
+    if not m:
+        raise HTTPException(404, "消息不存在")
+    db.delete(m)
+    db.commit()
+    return {"success": True, "message": "已删除"}
+
+
 @router.patch("/conversations/{conv_id}", response_model=ConversationOut)
 async def update_conversation(conv_id: int, req: UpdateConversationRequest, db: Session = Depends(get_db)):
     """更新对话标题或位置"""
