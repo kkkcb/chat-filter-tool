@@ -71,6 +71,15 @@ export const useChatStore = create((set, get) => ({
       let msgData = null
       let lastRender = 0
 
+      // 归属守卫：流式内容只写本次的占位消息。用户中途切换会话后 messages
+      // 已被换成新会话的历史——继续写"最后一条"会把 AI 回复灌进别人的气泡
+      // （含用户消息）。守卫失守后跳过 UI 更新但继续读完流，让后端完整保存。
+      const safeUpdate = (updates) => {
+        if (get().messages.some(m => m.id === assistantMsg.id)) {
+          get()._updateLastMsg(set, updates)
+        }
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -86,7 +95,7 @@ export const useChatStore = create((set, get) => ({
 
             if (evt.type === 'start') {
               // 连接已建立，显示等待状态；如果返回了 conversation_id，通知回调
-              get()._updateLastMsg(set, { typing: true })
+              safeUpdate({ typing: true })
               if (evt.conversation_id && onComplete) {
                 onComplete(evt.conversation_id)
               }
@@ -97,26 +106,26 @@ export const useChatStore = create((set, get) => ({
             } else if (evt.type === 'saved') {
               // 助手消息已入库，记录服务端 ID（支持单句删除/懒加载 raw）
               if (evt.message_id) {
-                get()._updateLastMsg(set, { messageId: evt.message_id })
+                safeUpdate({ messageId: evt.message_id })
               }
             } else if (evt.type === 'reasoning') {
               fullReasoning += evt.data
               const now = performance.now()
               if (now - lastRender > RENDER_INTERVAL) {
                 lastRender = now
-                get()._updateLastMsg(set, { reasoning: fullReasoning, typing: false })
+                safeUpdate({ reasoning: fullReasoning, typing: false })
               }
             } else if (evt.type === 'content') {
               fullContent += evt.data
               const now = performance.now()
               if (now - lastRender > RENDER_INTERVAL) {
                 lastRender = now
-                get()._updateLastMsg(set, { content: fullContent, typing: false })
+                safeUpdate({ content: fullContent, typing: false })
               }
             } else if (evt.type === 'citations') {
-              get()._updateLastMsg(set, { citations: evt.data })
+              safeUpdate({ citations: evt.data })
             } else if (evt.type === 'error') {
-              get()._updateLastMsg(set, {
+              safeUpdate({
                 content: `请求失败：${evt.data}`,
                 typing: false, streaming: false,
               })
@@ -139,7 +148,7 @@ export const useChatStore = create((set, get) => ({
         reply: fullContent,
       }, null, 2)
 
-      get()._updateLastMsg(set, {
+      safeUpdate({
         typing: false, streaming: false,
         content: fullContent || msgData?.reply || '（无回复）',
         reasoning: fullReasoning,
@@ -152,13 +161,13 @@ export const useChatStore = create((set, get) => ({
 
     } catch (err) {
       if (err.name === 'AbortError') {
-        get()._updateLastMsg(set, {
+        safeUpdate({
           typing: false, streaming: false, aborted: true,
           content: get()._getLastMsg()?.content || '（已中止）',
         })
       } else {
         const errMsg = err?.message || '网络请求失败'
-        get()._updateLastMsg(set, {
+        safeUpdate({
           content: `请求失败：${errMsg}`,
           typing: false, streaming: false,
         })
