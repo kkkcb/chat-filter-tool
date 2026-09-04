@@ -130,8 +130,14 @@ class MaterialService:
         return [self._to_dict(m) for _, m in results[:limit]]
 
     def build_rag_context(self, question: str) -> tuple[str, list]:
-        """构建 RAG 上下文 + 引用列表"""
-        relevant = self.search_relevant(question, limit=5)
+        """构建 RAG 上下文 + 引用列表 — 关键词覆盖度过滤，不够相关的直接丢弃"""
+        from app.core.relevance import is_relevant
+        relevant = [
+            m for m in self.search_relevant(question, limit=5)
+            if is_relevant(question, " ".join(filter(None, [
+                m["title"], m.get("summary") or "", " ".join(m.get("tags", [])),
+            ])))
+        ]
 
         if not relevant:
             return "", []

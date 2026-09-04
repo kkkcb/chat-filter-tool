@@ -8,6 +8,7 @@ class ChatRequest(BaseModel):
     image: Optional[str] = ""
     mode: Optional[str] = "describe"
     thinking: Optional[bool] = False
+    use_rag: Optional[bool] = True   # 是否检索知识库并引用（前端「引用知识库」开关）
     conversation_id: Optional[int] = None
 
 
@@ -17,6 +18,7 @@ class ChatResponse(BaseModel):
     success: bool = True
     action: Optional[str] = None  # confirm_save / already_saved
     entry: Optional[dict] = None
+    citations: Optional[list] = None  # RAG 引用（缺此字段会被 response_model 静默滤掉）
 
 
 class SaveConfirmRequest(BaseModel):

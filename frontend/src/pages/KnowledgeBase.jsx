@@ -3,7 +3,7 @@ import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
   Check, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
-  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen,
+  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
 import { useVisionStore } from '../stores/visionStore'
@@ -30,7 +30,7 @@ const VISION_MODES = [
 ]
 
 export default function KnowledgeBase() {
-  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, removeMessage } = useChatStore()
+  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, removeMessage } = useChatStore()
   const { selectedImage, selectedMode, setImage, setMode, clear } = useVisionStore()
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
@@ -286,6 +286,17 @@ export default function KnowledgeBase() {
               <Brain size={14} strokeWidth={2} />
               <span>深度思考</span>
               <span className={`think-switch ${deepThinking ? 'on' : ''}`}>
+                <span className="think-switch-knob" />
+              </span>
+            </button>
+            <button
+              className={`think-toggle ${useRag ? 'active' : ''}`}
+              onClick={toggleUseRag}
+              title={useRag ? '已开启：回复会检索素材库/笔记并标注引用' : '已关闭：纯对话，不带参考资料'}
+            >
+              <BookOpen size={14} strokeWidth={2} />
+              <span>引用知识库</span>
+              <span className={`think-switch ${useRag ? 'on' : ''}`}>
                 <span className="think-switch-knob" />
               </span>
             </button>

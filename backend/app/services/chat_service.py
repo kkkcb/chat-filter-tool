@@ -87,7 +87,7 @@ class ChatService:
             "entry": entry,
         }
 
-    async def handle_message_stream(self, message: str, image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None):
+    async def handle_message_stream(self, message: str, image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True):
         """流式版统一入口 — yield (event_type, data_dict)"""
         if image:
             # 图片不支持流式，降级为普通调用
@@ -103,7 +103,7 @@ class ChatService:
             return
 
         # 普通对话走流式
-        async for event in self._handle_chat_stream(message, thinking, history or []):
+        async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag):
             yield event
 
     def _build_rag(self, question: str) -> tuple[str, list]:
@@ -121,14 +121,15 @@ class ChatService:
             system_content = (
                 "你是一个AI科普创作助手。用户正在运营AI科普公众号，坚持「一文一概念」系列。\n\n"
                 f"{rag_context}\n\n"
-                "上方是与问题最相关的知识库内容（收藏素材 + 个人知识库笔记，均按相关度排序）。\n"
-                "请基于这些素材回答用户的问题。要求：\n"
-                "1. 回答中**必须引用相关素材**，素材用 [序号] 标注、笔记用 [N序号] 标注引用来源\n"
-                "2. 回答末尾列出「参考资料」部分，格式：序号 + 标题 + 链接（笔记无链接则写「个人笔记」）\n"
-                "3. 如果素材中没有完全匹配的内容，基于素材做合理延伸，并标注哪些是你的推断\n"
-                "4. 回答要简洁有干货，适合中文表达\n"
-                "5. 如果用户问的是某个技能/工具/理论，优先从知识库中找到对应素材引用；"
-                "用户曾经踩过的坑（个人笔记里有记录）要主动提醒"
+                "上方是与问题可能相关的知识库内容（收藏素材 + 个人知识库笔记）。\n"
+                "请基于这些内容回答用户的问题。要求：\n"
+                "1. **只在素材内容直接支撑你的论点时才引用**：句末用 [序号] 标注素材、[N序号] 标注笔记；"
+                "与回答无关的素材不要硬凑引用\n"
+                "2. 引用了才在回答末尾列「参考资料」（序号 + 标题 + 链接，笔记写「个人笔记」）；"
+                "一条引用都没有就**不要**输出参考资料部分\n"
+                "3. 闲聊、简单问答、与知识库无关的问题（比如打招呼、问你是谁）直接正常回答，不提素材\n"
+                "4. 用户问某个技能/工具/理论时优先从知识库找依据；用户曾踩过的坑（笔记有记录）要主动提醒\n"
+                "5. 回答简洁有干货，适合中文表达"
             )
         messages = [{"role": "system", "content": system_content}]
         # 多轮历史（role/content 均已校验，见路由层 _load_history）
@@ -136,9 +137,9 @@ class ChatService:
         messages.append({"role": "user", "content": question})
         return messages
 
-    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None):
+    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True):
         """流式知识库对话"""
-        rag_context, citations = self._build_rag(question)
+        rag_context, citations = self._build_rag(question) if use_rag else ("", [])
         messages = self._build_messages(question, rag_context, history or [])
 
         # 发送引用信息

@@ -14,9 +14,11 @@ export const useChatStore = create((set, get) => ({
   isSending: false,
   abortController: null,
   deepThinking: false,
+  useRag: false, // 「引用知识库」开关：关=纯对话不带参考资料（默认），开=检索素材/笔记并引用
   lastSendParams: null, // 供 retry 复用（保留 conversationId/mode）
 
   toggleDeepThinking: () => set(state => ({ deepThinking: !state.deepThinking })),
+  toggleUseRag: () => set(state => ({ useRag: !state.useRag })),
 
   // 单句删除：从列表移除（有 messageId 的会同时已在服务端删除）
   removeMessage: (localId) => set(state => ({
@@ -58,7 +60,7 @@ export const useChatStore = create((set, get) => ({
       const resp = await fetch(`${API_PREFIX}/chat/stream`, {
         method: 'POST',
         headers: streamHeaders,
-        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, conversation_id: conversationId || null }),
+        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, conversation_id: conversationId || null }),
         signal: abortController.signal,
       })
 

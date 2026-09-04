@@ -290,8 +290,15 @@ class NoteService:
         return [self._to_dict(n) for _, n in scored[:limit]]
 
     def build_note_context(self, question: str, limit: int = 3) -> tuple[str, list]:
-        """构建笔记 RAG 上下文块 + 引用列表（编号独立于素材）"""
-        relevant = self.search_relevant(question, limit=limit)
+        """构建笔记 RAG 上下文块 + 引用列表（编号独立于素材）— 相关性过滤"""
+        from app.core.relevance import is_relevant
+        relevant = [
+            n for n in self.search_relevant(question, limit=limit)
+            if is_relevant(question, " ".join(filter(None, [
+                n["title"], " ".join(n.get("tags", [])),
+                (n.get("content") or "")[:400],
+            ])))
+        ]
         if not relevant:
             return "", []
         parts, citations = [], []
