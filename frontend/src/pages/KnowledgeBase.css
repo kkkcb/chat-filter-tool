@@ -79,16 +79,15 @@
 }
 .msg-detail-hint:hover { color:var(--accent); }
 
-/* === 单句删除按钮（悬停消息时浮现） === */
+/* === 单句删除按钮（常显低调，悬停强调） === */
 .msg-delete-btn {
   display:inline-flex; align-items:center; justify-content:center;
   width:20px; height:20px; padding:0; border:none; border-radius:4px;
   background:var(--bg-muted); color:var(--text-light); cursor:pointer;
-  opacity:0; transition:all var(--duration-fast) var(--ease);
+  opacity:.45; transition:all var(--duration-fast) var(--ease);
   margin-left:auto;
 }
-.msg:hover .msg-delete-btn { opacity:1; }
-.msg-delete-btn:hover { background:rgba(239,68,68,.1); color:var(--danger); }
+.msg-delete-btn:hover { opacity:1; background:rgba(239,68,68,.1); color:var(--danger); }
 
 /* === 原始请求/返回弹窗 === */
 .detail-modal-overlay {

@@ -9,9 +9,12 @@ cd "$(dirname "$0")"
 VPS_IP="${VPS_IP:-YOUR_VPS_IP}"
 VPS_USER="${VPS_USER:-root}"
 
-echo "→ 打包本机代码"
+echo "→ 打包本机代码（后端 + 前端 dist）"
+cd frontend && npm run build --silent >/dev/null 2>&1 || npm run build >/dev/null 2>&1
+cd ..
 tar czf ./.deploy-ice-code.tar.gz --exclude='__pycache__' --exclude='backend.log' --exclude='venv' \
   --exclude='migrations' backend/app backend/requirements.txt
+tar czf ./.deploy-ice-dist.tar.gz -C frontend dist
 WITH_DATA="${1:-}"
 
 echo "→ 上传到 $VPS_IP 并部署"
@@ -31,11 +34,15 @@ ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect(ip, username=user, password=pw, timeout=15)
 sftp = ssh.open_sftp()
 sftp.put("./.deploy-ice-code.tar.gz", "./.deploy-ice-code.tar.gz")
+sftp.put("./.deploy-ice-dist.tar.gz", "./.deploy-ice-dist.tar.gz")
 if with_data:
     sftp.put("./.deploy-ice-data.tar.gz", "./.deploy-ice-data.tar.gz")
 sftp.close()
 
-cmds = ["cd /opt/ice-workbench && tar xzf ./.deploy-ice-code.tar.gz"]
+cmds = [
+    "cd /opt/ice-workbench && tar xzf ./.deploy-ice-code.tar.gz",
+    "rm -rf /opt/ice-workbench/frontend/dist && mkdir -p /opt/ice-workbench/frontend && tar xzf ./.deploy-ice-dist.tar.gz -C /opt/ice-workbench/frontend",
+]
 if with_data:
     cmds.append("cd /opt/ice-workbench && tar xzf ./.deploy-ice-data.tar.gz")
 cmds += ["systemctl restart ice-workbench", "sleep 3",
