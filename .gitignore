@@ -47,3 +47,4 @@ tools/*
 backend/backend.log
 .deploy-ice-*.tar.gz
 .deploy-ice-dist.tar.gz
+backups/
