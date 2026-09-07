@@ -9,6 +9,9 @@ cd "$(dirname "$0")"
 VPS_IP="${VPS_IP:-YOUR_VPS_IP}"
 VPS_USER="${VPS_USER:-root}"
 
+echo "→ 部署前先备份线上数据（防数据同步/误操作事故）"
+python backup_vps.py || echo "（备份失败不阻塞部署，查看 backups/backup.log）"
+
 echo "→ 打包本机代码（后端 + 前端 dist）"
 cd frontend && npm run build --silent >/dev/null 2>&1 || npm run build >/dev/null 2>&1
 cd ..
