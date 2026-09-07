@@ -49,3 +49,4 @@ backend/backend.log
 .deploy-ice-dist.tar.gz
 backups/
 .vps-pass
+backend/DEPLOY_VERSION
