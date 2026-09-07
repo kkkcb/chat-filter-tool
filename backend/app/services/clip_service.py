@@ -34,7 +34,11 @@ class ClipService:
     async def _fetch_html(url: str, timeout: int = 15) -> str | None:
         """获取网页 HTML"""
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            # 完整真实的浏览器 UA——残缺 UA（以 AppleWebKit/537.36 结尾）会被
+            # 微信等站点的风控识别为机器人，间歇性 403
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         }
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
@@ -86,6 +90,18 @@ class ClipService:
         html = await ClipService._fetch_html(url)
         if not html:
             return None
+
+        # 微信的占位页（参数错误/环境异常/已删除等）也是 200，先识别出来，
+        # 避免解析出一篇「未知标题 空页面」让用户误以为抓取坏了
+        for marker in ("参数错误", "环境异常", "已被发布者删除", "此内容因违规", "链接已过期"):
+            if marker in html:
+                return {
+                    "title": "链接无法访问",
+                    "summary": f"微信返回「{marker}」",
+                    "content": "",
+                    "extra_text": "",
+                    "dead_link": True,
+                }
 
         soup = BeautifulSoup(html, "lxml")
 

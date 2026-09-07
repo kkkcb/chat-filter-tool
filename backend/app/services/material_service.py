@@ -162,6 +162,9 @@ class MaterialService:
         page_data = await clip_service.fetch(url)
         if not page_data:
             return {"success": False, "error": "抓取失败"}
+        if page_data.get("dead_link"):
+            # 死链/被删文章：给出明确原因，不浪费一次 AI 分类调用
+            return {"success": False, "error": f"链接无法访问（{page_data.get('summary', '已失效')}），请确认文章未被删除或链接复制完整"}
 
         # 2. AI 分类
         ai_result = await llm_service.classify(
@@ -231,6 +234,9 @@ class MaterialService:
         page_data = await clip_service.fetch(url)
         if not page_data:
             return {"success": False, "error": "抓取失败"}
+        if page_data.get("dead_link"):
+            # 死链/被删文章：给出明确原因，不浪费一次 AI 分类调用
+            return {"success": False, "error": f"链接无法访问（{page_data.get('summary', '已失效')}），请确认文章未被删除或链接复制完整"}
 
         # 3. AI 分类
         ai_result = await llm_service.classify(
