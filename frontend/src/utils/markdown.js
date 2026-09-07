@@ -91,22 +91,45 @@ function fixInlineSyntax(text) {
   return text
 }
 
+/**
+ * 自定义标签分节 → markdown 标题
+ * 提示词笔记常用 <角色>、<回复逻辑> 这类 XML 风格标签做分节——markdown-it
+ * 不认识它们，DOMPurify 消毒时会静默剥掉，整篇结构糊成一坨。独立成行的
+ * 开标签转成二级标题，闭标签整行删除。须在 protectSegments 之后调用
+ * （代码块已被占位符替换，块内的标签样文本不会被误转）。
+ */
+function convertCustomTags(text) {
+  return text
+    .split('\n')
+    .map((line) => {
+      const t = line.trim()
+      if (/^<\/[^<>\/]+>$/.test(t)) return ''
+      const open = t.match(/^<([^<>\/]+)>$/)
+      if (open) return `## ${open[1].trim()}`
+      return line
+    })
+    .join('\n')
+}
+
 export function renderMarkdown(text) {
   if (!text) return ''
 
   // 1. 保护 code 和已有 HTML
   const { text: protectedText, restore } = protectSegments(text)
 
-  // 2. 修复 emphasis / strikethrough 语法（中文标点兼容）
-  const fixed = fixInlineSyntax(protectedText)
+  // 2. 自定义标签分节转标题（提示词类笔记的结构恢复）
+  const tagged = convertCustomTags(protectedText)
 
-  // 3. 用 markdown-it 渲染
+  // 3. 修复 emphasis / strikethrough 语法（中文标点兼容）
+  const fixed = fixInlineSyntax(tagged)
+
+  // 4. 用 markdown-it 渲染
   let html = md.render(fixed)
 
-  // 4. 恢复保护的片段
+  // 5. 恢复保护的片段
   html = restore(html)
 
-  // 5. XSS 消毒：移除所有危险标签和属性
+  // 6. XSS 消毒：移除所有危险标签和属性
   html = DOMPurify.sanitize(html, SANITIZE_CONFIG)
 
   return html

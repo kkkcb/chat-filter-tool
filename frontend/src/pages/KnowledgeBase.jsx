@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
-  Check, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
+  Check, Copy, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
   Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
@@ -406,19 +406,85 @@ export default function KnowledgeBase() {
                 </div>
               ) : (
                 <>
-                  <div className="detail-section">
-                    <h4>请求 (Request)</h4>
-                    <pre className="detail-code">{detailModal.rawRequest || '(无)'}</pre>
-                  </div>
-                  <div className="detail-section">
-                    <h4>返回 (Response)</h4>
-                    <pre className="detail-code">{detailModal.rawResponse || '(无)'}</pre>
-                  </div>
+                  <RawJSONSection title="系统提示词 (System)" raw={extractSystemPrompt(detailModal.rawRequest)} asMarkdown />
+                  <RawJSONSection title="请求 (Request)" raw={stripSystemPrompt(detailModal.rawRequest)} />
+                  <RawJSONSection title="返回 (Response)" raw={detailModal.rawResponse} />
                 </>
               )}
             </div>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+/* === 原始数据查看辅助 === */
+
+/** 从 rawRequest JSON 里提取 system 消息的 content（系统提示词本体） */
+function extractSystemPrompt(raw) {
+  try {
+    const obj = JSON.parse(raw)
+    const sys = (obj.messages || []).find(m => m.role === 'system')
+    return sys ? sys.content : null
+  } catch { return null }
+}
+
+/** 展示用：去掉 messages 里的 system 项（已单独在上方渲染），其余保持原样 */
+function stripSystemPrompt(raw) {
+  try {
+    const obj = JSON.parse(raw)
+    if (obj.messages && obj.messages[0]?.role === 'system') {
+      obj.messages = [
+        { role: 'system', content: `（系统提示词见上方，共 ${obj.messages[0].content.length} 字）` },
+        ...obj.messages.slice(1),
+      ]
+    }
+    return JSON.stringify(obj, null, 2)
+  } catch { return raw }
+}
+
+/** JSON 语法高亮（单遍 tokenize，escape 每段防注入；非 JSON 原样返回 null） */
+function highlightJSON(text) {
+  let obj
+  try { obj = JSON.parse(text) } catch { return null }
+  const pretty = JSON.stringify(obj, null, 2)
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return pretty.replace(
+    /("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+    (m, str, colon, bool, num) => {
+      if (str) return colon ? `<span class="j-key">${esc(str)}</span>${colon}` : `<span class="j-str">${esc(str)}</span>`
+      if (bool) return `<span class="j-bool">${bool}</span>`
+      if (num) return `<span class="j-num">${num}</span>`
+      return esc(m)
+    },
+  )
+}
+
+/** 一节原始数据：JSON 高亮 / Markdown 渲染（系统提示词）+ 复制按钮 */
+function RawJSONSection({ title, raw, asMarkdown = false }) {
+  const [copied, setCopied] = useState(false)
+  if (!raw) return null
+  const highlighted = asMarkdown ? null : highlightJSON(raw)
+  const copy = () => {
+    navigator.clipboard.writeText(raw)
+      .then(() => { setCopied(true); toast('已复制', 'success'); setTimeout(() => setCopied(false), 1500) })
+      .catch(() => toast('复制失败', 'error'))
+  }
+  return (
+    <div className="detail-section">
+      <h4>
+        {title}
+        <button className="detail-copy-btn" onClick={copy} title="复制原文">
+          {copied ? <Check size={12} strokeWidth={2.4} /> : <Copy size={12} strokeWidth={2} />}
+        </button>
+      </h4>
+      {asMarkdown ? (
+        <div className="detail-system" dangerouslySetInnerHTML={{ __html: renderMarkdown(raw) }} />
+      ) : highlighted ? (
+        <pre className="detail-code dark" dangerouslySetInnerHTML={{ __html: highlighted }} />
+      ) : (
+        <pre className="detail-code">{raw}</pre>
       )}
     </div>
   )

@@ -126,6 +126,44 @@
   color:var(--text); overflow-x:auto; white-space:pre-wrap; word-break:break-word;
 }
 
+/* JSON 语法高亮（深色代码底） */
+.detail-code.dark {
+  background:#15171c; border-color:#22252d; color:#c8cfda;
+}
+.detail-code.dark::-webkit-scrollbar { height:8px; }
+.detail-code.dark::-webkit-scrollbar-thumb { background:#2c313a; border-radius:4px; }
+.j-key { color:#7aa2f7; }
+.j-str { color:#9ece6a; }
+.j-num { color:#ff9e64; }
+.j-bool { color:#bb9af7; }
+
+/* 系统提示词：Markdown 渲染卡片 */
+.detail-system {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 16px;
+  font-size:12.5px; line-height:1.75; color:var(--text-secondary);
+  max-height:340px; overflow-y:auto;
+}
+.detail-system h1, .detail-system h2, .detail-system h3 { font-size:13px; margin:10px 0 6px; }
+.detail-system code {
+  background:var(--bg-muted); padding:1px 5px; border-radius:4px;
+  font-family:var(--font-mono); font-size:11.5px; color:var(--accent-dark);
+}
+.detail-system pre {
+  background:var(--bg-muted); border-radius:6px; padding:10px;
+  font-family:var(--font-mono); font-size:11.5px; overflow-x:auto;
+}
+
+/* 小节标题里的复制按钮 */
+.detail-section h4 { display:flex; align-items:center; gap:8px; }
+.detail-copy-btn {
+  width:22px; height:22px; padding:0; border:none; border-radius:5px;
+  background:none; color:var(--text-light); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:all var(--duration-fast) var(--ease);
+}
+.detail-copy-btn:hover { background:var(--bg-muted); color:var(--accent); }
+
 /* === 全屏对话页面 === */
 .chat-page-messages { flex:1; overflow-y:auto; padding:20px 24px; max-width:800px; margin:0 auto; width:100%; }
 
