@@ -52,12 +52,43 @@ class ClipService:
 
     @staticmethod
     async def _fetch_github(url: str) -> dict | None:
-        """GitHub: About + README"""
+        """GitHub: About + README（优先 API，页面 HTML 兜底）
+
+        部分机房到 github.com 主页超时但 api.github.com 正常（实测火山
+        轻量香港即如此），故 API 优先：About 走 repo 信息、README 走
+        readme 端点（匿名限流 60/h，个人使用足够）。
+        """
         match = re.match(r"https?://github\.com/([^/]+)/([^/]+)", url)
         if not match:
             return None
         owner, repo = match.group(1), match.group(2).rstrip("/").replace(".git", "")
 
+        desc, readme = "", ""
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                r = await client.get(
+                    f"https://api.github.com/repos/{owner}/{repo}",
+                    headers={"Accept": "application/vnd.github+json"})
+                if r.status_code == 200:
+                    info = r.json()
+                    desc = info.get("description") or ""
+                    rr = await client.get(
+                        f"https://api.github.com/repos/{owner}/{repo}/readme",
+                        headers={"Accept": "application/vnd.github.raw"})
+                    if rr.status_code == 200:
+                        readme = rr.text[:3000]
+        except Exception as e:
+            print(f"[Clip] GitHub API 失败: {e}")
+
+        if desc or readme:
+            return {
+                "title": f"{owner}/{repo}",
+                "summary": desc or f"GitHub 项目 {owner}/{repo}",
+                "content": f"## About\n\n{desc}\n\n## README (节选)\n\n{readme}",
+                "extra_text": "",
+            }
+
+        # 兜底：老路径（抓页面 HTML 解析 og:description + 渲染后 README）
         page_url = f"https://github.com/{owner}/{repo}"
         html = await ClipService._fetch_html(page_url)
         if not html:
@@ -66,7 +97,6 @@ class ClipService:
         soup = BeautifulSoup(html, "lxml")
 
         # About (og:description)
-        desc = ""
         og_desc = soup.find("meta", property="og:description")
         if og_desc:
             desc = og_desc.get("content", "")
