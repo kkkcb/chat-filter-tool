@@ -351,7 +351,11 @@ class NoteService:
 
     @staticmethod
     def _strip_markdown(text: str) -> str:
-        text = re.sub(r"[#*`>\-\[\]()!]+", " ", text or "")
+        text = text or ""
+        # 先整体替换图片/链接语法（只删符号会把 URL 泄成"图片 /api/..."残文）
+        text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "[图片]", text)
+        text = re.sub(r"\[([^\]]*)\]\([^)]+\)", r"\1", text)
+        text = re.sub(r"[#*`>\-\[\]()!]+", " ", text)
         return re.sub(r"\s+", " ", text).strip()
 
     @staticmethod
