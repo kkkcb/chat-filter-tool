@@ -83,20 +83,24 @@ async def access_gate_and_cors(request: Request, call_next):
         )
 
     if needs_auth and path.startswith("/api") and path != "/api/health":
-        supplied = request.headers.get("x-access-token") or request.query_params.get("access_token") or ""
-        if not supplied:
-            auth = request.headers.get("authorization") or ""
-            if auth.lower().startswith("bearer "):
-                supplied = auth[7:].strip()
-        if supplied != token:
-            from fastapi.responses import JSONResponse
-            # 401 也必须带 CORS 头，否则跨源前端 fetch 被浏览器拦截、
-            # 拿不到状态码，无法触发令牌输入弹窗
-            return JSONResponse(
-                {"detail": "需要访问令牌"},
-                status_code=401,
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
+        # 笔记图片静态服务豁免：<img> 标签无法携带 X-Access-Token 头，
+        # 强制鉴权会导致正文里的图片全部 401 裂图。安全性靠文件名不可猜
+        # （12 位 hex）+ 笔记正文/列表 API 仍需令牌（先过鉴权才能拿到 URL）
+        if not (path.startswith("/api/notes/images/") and request.method == "GET"):
+            supplied = request.headers.get("x-access-token") or request.query_params.get("access_token") or ""
+            if not supplied:
+                auth = request.headers.get("authorization") or ""
+                if auth.lower().startswith("bearer "):
+                    supplied = auth[7:].strip()
+            if supplied != token:
+                from fastapi.responses import JSONResponse
+                # 401 也必须带 CORS 头，否则跨源前端 fetch 被浏览器拦截、
+                # 拿不到状态码，无法触发令牌输入弹窗
+                return JSONResponse(
+                    {"detail": "需要访问令牌"},
+                    status_code=401,
+                    headers={"Access-Control-Allow-Origin": "*"},
+                )
 
     response = await call_next(request)
     if open_cors and path.startswith("/api"):
