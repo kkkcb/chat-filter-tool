@@ -345,6 +345,10 @@ function NoteCard({ note, onOpen, onDelete }) {
       >
         <Trash2 size={14} strokeWidth={2} />
       </button>
+      {/* 首图封面（图片为主的笔记直接看图，而不是"图片"两个字） */}
+      {note.cover_image && (
+        <img className="pkb-card-cover" src={note.cover_image} alt="" loading="lazy" />
+      )}
       <div className="pkb-card-title">{note.title}</div>
       {note.category && (() => {
         const c = catColor(note.category)

@@ -356,21 +356,27 @@ class NoteService:
         text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "[图片]", text)
         text = re.sub(r"\[([^\]]*)\]\([^)]+\)", r"\1", text)
         text = re.sub(r"[#*`>\-\[\]()!]+", " ", text)
-        return re.sub(r"\s+", " ", text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
+        # 多图笔记的摘要只保留一个「图片」占位
+        return re.sub(r"(图片)(\s*图片)+", r"\1", text)
+
+    _IMG_RE = re.compile(r"!\[[^\]]*\]\((/api/notes/images/[^)\s]+)\)")
 
     @staticmethod
     def _row_to_dict(row) -> dict:
-        """列表行 → dict（仅摘要，无全文）"""
+        """列表行 → dict（仅摘要，无全文；图片笔记带首图作卡片封面）"""
         try:
             tags = json.loads(row.tags) if row.tags else []
         except (json.JSONDecodeError, TypeError):
             tags = []
         excerpt = NoteService._strip_markdown(row.content_head or "")
+        cover = NoteService._IMG_RE.search(row.content_head or "")
         return {
             "id": row.id,
             "title": row.title,
             "content": None,  # 列表不含全文，详情接口按需拉取
             "excerpt": excerpt[:160],
+            "cover_image": cover.group(1) if cover else "",
             "tags": tags,
             "category": (row.category or "").strip(),
             "source_conversation_id": row.source_conversation_id,
