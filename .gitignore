@@ -50,3 +50,4 @@ backend/backend.log
 backups/
 .vps-pass
 backend/DEPLOY_VERSION
+data/note_images/

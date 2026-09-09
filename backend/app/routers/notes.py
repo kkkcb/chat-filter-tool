@@ -1,13 +1,54 @@
 """个人知识库笔记路由"""
-from fastapi import APIRouter, Depends, HTTPException, Query
+import os
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.database import get_db
 from app.services.note_service import NoteService
 from app.schemas.note import NoteCreate, NoteUpdate, SummarizeRequest
 
 router = APIRouter()
+
+# 笔记图片：落盘存储（base64 塞正文会让笔记体积/检索/编辑全面劣化）
+IMAGE_DIR = settings.inbox_path.parent / "data" / "note_images"
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"}
+MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
+
+def _safe_image_name(name: str) -> str:
+    if (not name or name in (".", "..") or "/" in name or "\\" in name or ":" in name):
+        raise HTTPException(400, "非法文件名")
+    return name
+
+
+@router.post("/notes/images")
+async def upload_note_image(file: UploadFile = File(...)):
+    """笔记图片上传：落盘返回 URL，markdown 以 ![](url) 引用"""
+    if (file.content_type or "") not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(400, f"不支持的图片类型：{file.content_type}（支持 png/jpeg/gif/webp/bmp）")
+    data = await file.read()
+    if len(data) > MAX_IMAGE_SIZE:
+        raise HTTPException(400, "图片过大（最大 10MB）")
+    ext = (file.content_type or "image/png").split("/")[-1].replace("jpeg", "jpg")
+    name = f"{uuid.uuid4().hex[:12]}.{ext}"
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    (IMAGE_DIR / name).write_bytes(data)
+    return {"url": f"/api/notes/images/{name}", "name": name, "size": len(data)}
+
+
+@router.get("/notes/images/{name}")
+async def get_note_image(name: str):
+    """笔记图片静态服务（纯文件名校验，防路径穿越）"""
+    _safe_image_name(name)
+    path = IMAGE_DIR / name
+    if not path.is_file():
+        raise HTTPException(404, "图片不存在")
+    return FileResponse(path)
 
 
 class CategoryCreate(BaseModel):

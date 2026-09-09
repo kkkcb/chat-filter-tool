@@ -39,3 +39,19 @@ export const renameCategory = (name, newName) =>
 
 export const deleteCategory = (name) =>
   request(`/notes/categories/${encodeURIComponent(name)}`, { method: 'DELETE' })
+
+/** 笔记图片上传（multipart）→ { url: '/api/notes/images/xxx' } */
+export const uploadNoteImage = async (file) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  const { getAccessToken, API_PREFIX } = await import('./client')
+  const headers = {}
+  const token = getAccessToken()
+  if (token) headers['X-Access-Token'] = token
+  const resp = await fetch(`${API_PREFIX}/notes/images`, { method: 'POST', body: fd, headers })
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.detail || `上传失败 HTTP ${resp.status}`)
+  }
+  return resp.json()
+}

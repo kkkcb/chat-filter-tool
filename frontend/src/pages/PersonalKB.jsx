@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus,
+  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
-import { getNote } from '../api/notes'
+import { getNote, uploadNoteImage } from '../api/notes'
+import { analyzeVision } from '../api/vision'
 import { renderMarkdown } from '../utils/markdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
@@ -383,6 +384,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [lightbox, setLightbox] = useState(null)
   const textareaRef = useRef(null)
 
   // 分类候选：已有分类在前 + 固定示例（去重）
@@ -413,6 +415,33 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
       setContent(note.content)
     }
   }, [modal.mode, note])
+
+  // 粘贴图片：上传落盘 → 在光标处插入 markdown 引用（正文只存 URL 不存 base64）
+  const handleEditorPaste = async (e) => {
+    const items = e.clipboardData?.items || []
+    for (const item of items) {
+      if (!item.type.startsWith('image/')) continue
+      const file = item.getAsFile()
+      if (!file) continue
+      e.preventDefault()
+      toast('图片上传中...', 'info', 1500)
+      try {
+        const { url } = await uploadNoteImage(file)
+        const ta = textareaRef.current
+        const markdown = `\n![图片](${url})\n`
+        const pos = ta?.selectionStart ?? content.length
+        const next = content.slice(0, pos) + markdown + content.slice(pos)
+        setContent(next)
+        requestAnimationFrame(() => {
+          if (ta) { ta.selectionStart = ta.selectionEnd = pos + markdown.length }
+        })
+        toast('图片已插入', 'success')
+      } catch (err) {
+        toast(err?.message || '图片上传失败', 'error')
+      }
+      return // 一次只处理一张
+    }
+  }
 
   const handleSave = async () => {
     if (!title.trim()) { toast('请填写标题', 'error'); return }
@@ -501,8 +530,8 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                   value={tagsInput} onChange={e => setTagsInput(e.target.value)} />
               </div>
             </div>
-            <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown..."
-              value={content} onChange={e => setContent(e.target.value)} spellCheck={false} />
+            <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown...（可直接粘贴图片）"
+              value={content} onChange={e => setContent(e.target.value)} onPaste={handleEditorPaste} spellCheck={false} />
             <div className="pkb-editor-footer">
               <span className="pkb-editor-hint">{content.length} 字 · Markdown</span>
               <div className="pkb-editor-btns">
@@ -532,8 +561,72 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
             {loadingNote || note?.content == null ? (
               <div className="pkb-view-loading"><Loader2 size={18} strokeWidth={2.5} className="wx-spin" /> 加载正文...</div>
             ) : (
-              <div className="pkb-view-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content) }} />
+              <div
+                className="pkb-view-content"
+                onClick={(e) => { if (e.target.tagName === 'IMG') setLightbox(e.target.src) }}
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content) }}
+              />
             )}
+          </div>
+        )}
+      </div>
+
+      {/* 图片大图查看 + 提取图中文字 */}
+      {lightbox && (
+        <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />
+      )}
+    </div>
+  )
+}
+
+/* === 图片大图（自适应查看 + 图中文本提取） === */
+function ImageLightbox({ src, onClose }) {
+  const [ocrText, setOcrText] = useState(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const extractText = async () => {
+    setOcrLoading(true)
+    try {
+      // 取图片转 base64 调视觉模型（相对路径走同源/代理，外部图直接 fetch）
+      const blob = await (await fetch(src)).blob()
+      const b64 = await new Promise((resolve) => {
+        const fr = new FileReader()
+        fr.onload = () => resolve(fr.result)
+        fr.readAsDataURL(blob)
+      })
+      const r = await analyzeVision({ image: b64, mode: 'ocr' })
+      setOcrText(r.reply || '（未识别到文字）')
+    } catch (e) {
+      setOcrText(`提取失败：${e?.message || e}`)
+    }
+    setOcrLoading(false)
+  }
+
+  const copyOcr = () => {
+    navigator.clipboard.writeText(ocrText || '')
+      .then(() => { setCopied(true); toast('已复制', 'success'); setTimeout(() => setCopied(false), 1500) })
+      .catch(() => toast('复制失败', 'error'))
+  }
+
+  return (
+    <div className="img-lightbox" onClick={onClose}>
+      <div className="img-lightbox-body" onClick={(e) => e.stopPropagation()}>
+        <img src={src} alt="笔记图片" onClick={(e) => e.stopPropagation()} />
+        <div className="img-lightbox-actions">
+          <button className="ilb-btn" onClick={extractText} disabled={ocrLoading}>
+            {ocrLoading ? <Loader2 size={13} className="wx-spin" /> : <ScanText size={13} />}
+            提取图中文字
+          </button>
+          <button className="ilb-btn ghost" onClick={onClose}><X size={13} /> 关闭</button>
+        </div>
+        {ocrLoading && <div className="ilb-ocr loading">识别中...</div>}
+        {ocrText && !ocrLoading && (
+          <div className="ilb-ocr">
+            <pre>{ocrText}</pre>
+            <button className="ilb-btn sm" onClick={copyOcr}>
+              {copied ? <Check size={12} /> : <Copy size={12} />} 复制文字
+            </button>
           </div>
         )}
       </div>

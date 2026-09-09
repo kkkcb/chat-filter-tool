@@ -259,6 +259,13 @@
 .pkb-view-title { font-size:19px; font-weight:700; color:var(--text); line-height:1.5; margin-bottom:10px; }
 .pkb-view-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
 .pkb-view-content { font-size:13.5px; line-height:1.85; color:var(--text); }
+/* 笔记图片：自适应不撑爆 + 可点击放大 */
+.pkb-view-content img {
+  max-width:100%; height:auto; display:block; margin:10px 0;
+  border-radius:8px; border:1px solid var(--border); cursor:zoom-in;
+  transition:opacity var(--duration-fast) var(--ease);
+}
+.pkb-view-content img:hover { opacity:.92; }
 .pkb-view-loading {
   display:flex; align-items:center; justify-content:center; gap:8px;
   padding:40px 0; color:var(--text-muted); font-size:13px;
@@ -334,3 +341,39 @@
 .pkb-btn-primary:disabled { background:var(--text-light); cursor:not-allowed; }
 
 @media (max-width:1100px) { .pkb-masonry { columns:2 300px; } }
+
+/* === 图片大图查看（lightbox）+ 图中文本提取 === */
+.img-lightbox {
+  position:fixed; inset:0; z-index:1300; background:rgba(0,0,0,.72);
+  display:flex; align-items:center; justify-content:center;
+  animation:agateFade .15s ease;
+}
+.img-lightbox-body {
+  max-width:86vw; max-height:88vh; display:flex; flex-direction:column; gap:10px;
+}
+.img-lightbox-body img {
+  max-width:86vw; max-height:64vh; border-radius:10px;
+  box-shadow:0 8px 40px rgba(0,0,0,.5); object-fit:contain;
+}
+.img-lightbox-actions { display:flex; gap:8px; justify-content:center; }
+.ilb-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:6px 14px; border:none; border-radius:8px;
+  background:rgba(255,255,255,.92); color:#1a1d23;
+  font-size:12.5px; font-weight:600; font-family:var(--font); cursor:pointer;
+  transition:all var(--duration-fast) var(--ease);
+}
+.ilb-btn:hover { background:#fff; transform:translateY(-1px); }
+.ilb-btn.ghost { background:rgba(255,255,255,.14); color:#e8eaee; }
+.ilb-btn.ghost:hover { background:rgba(255,255,255,.24); }
+.ilb-btn.sm { padding:4px 10px; font-size:11.5px; align-self:flex-end; }
+.ilb-btn:disabled { opacity:.6; cursor:wait; }
+.ilb-ocr {
+  background:rgba(255,255,255,.96); border-radius:10px; padding:12px 14px;
+  max-height:26vh; overflow-y:auto;
+}
+.ilb-ocr.loading { color:#5f6672; font-size:12.5px; text-align:center; }
+.ilb-ocr pre {
+  margin:0 0 8px; white-space:pre-wrap; word-break:break-word;
+  font-family:var(--font); font-size:12.5px; line-height:1.7; color:#1a1d23;
+}
