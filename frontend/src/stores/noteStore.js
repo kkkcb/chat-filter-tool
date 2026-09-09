@@ -8,6 +8,7 @@ export const useNoteStore = create((set, get) => ({
   notes: [],
   stats: { total: 0, tags: {} },
   loading: false,
+  filter: {},   // 当前列表过滤（q/tag/category）——保存/删除后刷新保持所在视图
 
   loadNotes: async (params = {}) => {
     set({ loading: true })
@@ -26,9 +27,11 @@ export const useNoteStore = create((set, get) => ({
     } catch {}
   },
 
-  /** 新建/编辑保存后刷新列表与统计 */
-  refresh: async (params = {}) => {
-    await Promise.all([get().loadNotes(params), get().loadStats()])
+  /** 新建/编辑保存后刷新列表与统计 — 保持用户当前所在分类/标签/搜索视图 */
+  refresh: async (params) => {
+    const filter = params !== undefined ? params : get().filter
+    set({ filter })
+    await Promise.all([get().loadNotes(filter), get().loadStats()])
   },
 
   saveNote: async (data, id = null) => {

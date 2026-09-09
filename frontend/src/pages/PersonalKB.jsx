@@ -71,6 +71,8 @@ export default function PersonalKB() {
     if (tag) params.tag = tag
     if (category) params.category = category
     loadNotes(params)
+    // 记住当前过滤：保存/删除后的自动刷新会保持这个视图（不弹回"全部"）
+    useNoteStore.setState({ filter: params })
   }, [loadNotes])
 
   useEffect(() => { refresh() }, [refresh])
