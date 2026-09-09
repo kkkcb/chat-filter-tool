@@ -324,10 +324,22 @@
   background:var(--bg-muted); color:var(--text-secondary); white-space:nowrap;
 }
 .pkb-edit-content {
-  flex:1; margin:12px 24px; border:none; outline:none; resize:none;
+  flex:1; margin:12px 24px 0; border:none; outline:none; resize:none;
   background:none; font-family:var(--font); font-size:13.5px; line-height:1.8;
-  color:var(--text); min-height:200px;
+  color:var(--text); min-height:140px;
 }
+
+/* 编辑态实时图片条（正文引用的图即时可见） */
+.pkb-edit-images {
+  display:flex; gap:8px; flex-wrap:wrap; margin:0 24px 10px;
+  padding-top:10px; border-top:1px dashed var(--border);
+}
+.pkb-edit-images img {
+  width:72px; height:54px; object-fit:cover; border-radius:6px;
+  border:1px solid var(--border); cursor:zoom-in;
+  transition:all var(--duration-fast) var(--ease);
+}
+.pkb-edit-images img:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
 .pkb-editor-footer {
   display:flex; align-items:center; justify-content:space-between;
   padding:10px 24px 14px; border-top:1px solid var(--border);

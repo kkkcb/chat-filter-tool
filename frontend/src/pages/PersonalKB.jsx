@@ -536,6 +536,18 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
             </div>
             <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown...（可直接粘贴图片）"
               value={content} onChange={e => setContent(e.target.value)} onPaste={handleEditorPaste} spellCheck={false} />
+            {/* 编辑态实时图片条：正文中引用的图片即时可见（缩略，点击放大） */}
+            {(() => {
+              const urls = [...content.matchAll(/!\[[^\]]*\]\((\/api\/notes\/images\/[^)\s]+|https?:\/\/[^)\s]+)\)/g)].map(m => m[1])
+              if (!urls.length) return null
+              return (
+                <div className="pkb-edit-images">
+                  {urls.map((u, i) => (
+                    <img key={i} src={u} alt="" onClick={() => setLightbox(u)} title="点击放大" />
+                  ))}
+                </div>
+              )
+            })()}
             <div className="pkb-editor-footer">
               <span className="pkb-editor-hint">{content.length} 字 · Markdown</span>
               <div className="pkb-editor-btns">
