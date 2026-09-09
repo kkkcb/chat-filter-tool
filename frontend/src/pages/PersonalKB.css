@@ -395,3 +395,35 @@
   margin:0 0 8px; white-space:pre-wrap; word-break:break-word;
   font-family:var(--font); font-size:12.5px; line-height:1.7; color:#1a1d23;
 }
+
+/* === 全屏（沉浸编辑/阅读） === */
+.pkb-modal.fullscreen {
+  width:95vw; height:94vh; max-height:94vh;
+}
+
+/* === 编辑布局：大纲侧栏 + 主编辑区 === */
+.pkb-editor { flex-direction:row !important; padding:0; gap:0; }
+.pkb-editor-main {
+  flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden;
+}
+.pkb-outline {
+  width:168px; flex-shrink:0; overflow-y:auto;
+  border-right:1px solid var(--border); background:var(--bg-muted);
+  padding:12px 0; display:flex; flex-direction:column; gap:2px;
+}
+.pkb-outline-head {
+  font-size:10.5px; font-weight:700; color:var(--text-light);
+  text-transform:uppercase; letter-spacing:.5px; padding:0 14px 8px;
+}
+.pkb-outline-item {
+  display:block; text-align:left; border:none; background:none; cursor:pointer;
+  font-size:12px; font-family:var(--font); color:var(--text-muted);
+  padding:5px 12px; line-height:1.45;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  border-left:2px solid transparent;
+  transition:all var(--duration-fast) var(--ease);
+}
+.pkb-outline-item:hover { color:var(--text); background:var(--bg-hover); }
+.pkb-outline-item.lv2 { font-weight:600; color:var(--text-secondary); }
+.pkb-outline-item.lv3 { padding-left:22px; }
+.pkb-outline-item.lv4 { padding-left:32px; font-size:11.5px; }

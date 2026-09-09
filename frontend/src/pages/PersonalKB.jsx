@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText,
+  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText, Maximize2, Minimize2,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
 import { getNote, uploadNoteImage } from '../api/notes'
@@ -389,7 +389,30 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [lightbox, setLightbox] = useState(null)
+  const [fullscreen, setFullscreen] = useState(false)
   const textareaRef = useRef(null)
+
+  // 编辑大纲：正文标题（##/###/####）→ 左侧栏点击跳转
+  const outline = useMemo(() => {
+    if (!editing) return []
+    return content.split('\n').flatMap((line, idx) => {
+      const m = line.match(/^(#{2,4})\s+(.+)/)
+      if (!m) return []
+      const text = m[2].trim().slice(0, 24)
+      return text ? [{ level: m[1].length, text, line: idx }] : []
+    })
+  }, [content, editing])
+
+  const jumpToOutline = (h) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    // 行高 = font-size(13.5px) × line-height(1.8)；滚动并放置光标到该行
+    const lineHeight = 13.5 * 1.8
+    const before = content.split('\n').slice(0, h.line).join('\n').length
+    ta.focus()
+    ta.setSelectionRange(before + (before ? 1 : 0), before + (before ? 1 : 0))
+    ta.scrollTop = Math.max(0, h.line * lineHeight - 48)
+  }
 
   // 分类候选：已有分类在前 + 固定示例（去重）
   const categoryOptions = [...new Set([
@@ -490,7 +513,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
 
   return (
     <div className="pkb-modal-overlay" onClick={onClose}>
-      <div className="pkb-modal" onClick={e => e.stopPropagation()}>
+      <div className={`pkb-modal ${fullscreen ? 'fullscreen' : ''}`} onClick={e => e.stopPropagation()}>
         <div className="pkb-modal-header">
           <span className="pkb-modal-title">
             {editing
@@ -511,12 +534,30 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                 </button>
               </>
             )}
+            <button className="pkb-icon-btn" onClick={() => setFullscreen(f => !f)}
+              title={fullscreen ? '退出全屏' : '全屏（沉浸编辑/阅读）'}>
+              {fullscreen ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
+            </button>
             <button className="pkb-icon-btn" onClick={onClose}><X size={17} strokeWidth={2} /></button>
           </div>
         </div>
 
         {editing ? (
           <div className="pkb-modal-body pkb-editor">
+            {/* ima 式大纲侧栏：点标题跳到编辑区对应位置 */}
+            {outline.length > 0 && (
+              <aside className="pkb-outline">
+                <div className="pkb-outline-head">大纲</div>
+                {outline.map((h, i) => (
+                  <button key={i} className={`pkb-outline-item lv${h.level}`}
+                    onClick={() => jumpToOutline(h)}
+                    title={h.text}>
+                    {h.text}
+                  </button>
+                ))}
+              </aside>
+            )}
+            <div className="pkb-editor-main">
             <input className="pkb-edit-title" placeholder="笔记标题..." value={title}
               onChange={e => setTitle(e.target.value)} />
             <div className="pkb-edit-row">
@@ -557,6 +598,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                   保存
                 </button>
               </div>
+            </div>
             </div>
           </div>
         ) : (
