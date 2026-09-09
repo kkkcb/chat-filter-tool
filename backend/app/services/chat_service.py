@@ -116,10 +116,15 @@ class ChatService:
     def _build_messages(self, question: str, rag_context: str, history: list) -> list[dict]:
         """组装完整 messages：system + 多轮历史 + 当前问题"""
         if not rag_context:
-            system_content = "你是一个AI科普创作助手，帮助用户运营AI科普公众号。请结合用户知识库素材（如有）回答问题。"
+            system_content = (
+                "你是一个AI科普创作助手，帮助用户运营AI科普公众号。请结合用户知识库素材（如有）回答问题。\n"
+                "输出规则：凡是要展示 HTML/XML 标签的字面写法（如 <img>、<div>），必须用反引号包裹成行内代码（如 `<img>`），"
+                "否则会被页面渲染吞掉导致内容缺失。"
+            )
         else:
             system_content = (
                 "你是一个AI科普创作助手。用户正在运营AI科普公众号，坚持「一文一概念」系列。\n\n"
+                "输出规则：凡是要展示 HTML/XML 标签的字面写法（如 <img>、<div>），必须用反引号包裹成行内代码（如 `<img>`），否则会被页面渲染吞掉。\n\n"
                 f"{rag_context}\n\n"
                 "上方是与问题可能相关的知识库内容（收藏素材 + 个人知识库笔记）。\n"
                 "请基于这些内容回答用户的问题。要求：\n"
