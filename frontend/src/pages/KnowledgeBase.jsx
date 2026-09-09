@@ -14,7 +14,7 @@ import { useNoteStore } from '../stores/noteStore'
 import { summarizeConversation } from '../api/notes'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
-import { renderMarkdown } from '../utils/markdown'
+import { renderMarkdown, renderUserText } from '../utils/markdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
 import { deleteMessage } from '../api/conversations'
@@ -644,7 +644,12 @@ function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onSh
           )}
 
           {msg.content ? (
-            <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+            isUser ? (
+              // 用户消息：禁 HTML 透传，尖括号内容原样显示（防 <img>/<script> 被吞）
+              <div dangerouslySetInnerHTML={{ __html: renderUserText(msg.content) }} />
+            ) : (
+              <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+            )
           ) : !msg.reasoning ? (
             <span className="msg-placeholder">...</span>
           ) : null}

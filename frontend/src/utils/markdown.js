@@ -8,6 +8,16 @@ const md = new MarkdownIt({
   typographer: false,
 })
 
+// 用户消息专用：禁 HTML 透传——用户输入的 <img>/<script> 等尖括号内容
+// 必须原样显示为文本，不能被解释/吞掉（同渲染器曾把用户消息里的
+// "<img>/<script>" 吃得只剩一个斜杠）
+const mdUser = new MarkdownIt({
+  html: false,
+  breaks: true,
+  linkify: true,
+  typographer: false,
+})
+
 // 所有链接新窗口打开
 const defaultLinkOpen = md.renderer.rules.link_open || function(tokens, idx, options, env, self) {
   return self.renderToken(tokens, idx, options)
@@ -132,5 +142,13 @@ export function renderMarkdown(text) {
   // 6. XSS 消毒：移除所有危险标签和属性
   html = DOMPurify.sanitize(html, SANITIZE_CONFIG)
 
+  return html
+}
+
+/** 用户消息渲染：禁 HTML 透传（尖括号内容原样显示），仍保留换行/链接识别 */
+export function renderUserText(text) {
+  if (!text) return ''
+  let html = mdUser.render(text)
+  html = DOMPurify.sanitize(html, SANITIZE_CONFIG)
   return html
 }
