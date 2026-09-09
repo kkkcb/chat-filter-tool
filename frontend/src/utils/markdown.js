@@ -54,6 +54,10 @@ const SANITIZE_CONFIG = {
 const PH_START = '\uE000'  // 私用区起始字符
 const PH_END = '\uE001'    // 私用区结束字符
 
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 function protectSegments(text) {
   const segments = []
 
@@ -65,9 +69,11 @@ function protectSegments(text) {
   })
 
   // 再保护 inline code: `code`
+  // 内容必须 HTML 转义——`<img>` 这类标签字样若不转义，拼出的
+  // <code><img></code> 会被消毒层当真实 img 标签，文本丢失
   result = result.replace(/`([^`]+)`/g, (_, content) => {
     const id = segments.length
-    segments.push(`<code>${content}</code>`)
+    segments.push(`<code>${escapeHtml(content)}</code>`)
     return `${PH_START}${id}${PH_END}`
   })
 
