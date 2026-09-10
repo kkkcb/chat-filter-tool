@@ -153,5 +153,5 @@ async def confirm_save(req: SaveConfirmRequest, db: Session = Depends(get_db)):
     svc = MaterialService(db)
     result = svc.save_entry(req.entry)
     if result.get("success"):
-        return SaveConfirmResponse(success=True, entry=result["entry"], message="已保存到知识库")
+        return SaveConfirmResponse(success=True, entry=result["entry"], message="已保存到素材库（侧边栏 → 素材库 查看）")
     return SaveConfirmResponse(success=False, message=result.get("error", "保存失败"))

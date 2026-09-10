@@ -240,7 +240,9 @@ export const useChatStore = create((set, get) => ({
 
     try {
       const data = await confirmSave(msg.entry)
-      const newContent = msg.content.replace('**是否保存到知识库？**', `**${data.message}**`)
+      const newContent = msg.content
+        .replace('**是否保存到知识库？**', `**${data.message}**`)      // 旧文案
+        .replace(/\*\*是否保存到素材库？[^\n]*/, `**${data.message}**`) // 新文案（含括号说明）
       set(state => ({
         messages: state.messages.map((m, i) =>
           i === messageIndex ? { ...m, saveState: 'saved', content: newContent } : m
@@ -260,7 +262,9 @@ export const useChatStore = create((set, get) => ({
 
   dismissSave: (messageIndex) => {
     const msg = get().messages[messageIndex]
-    const newContent = (msg?.content || '').replace('**是否保存到知识库？**', '**未保存**')
+    const newContent = (msg?.content || '')
+      .replace('**是否保存到知识库？**', '**未保存**')
+      .replace(/\*\*是否保存到素材库？[^\n]*/, '**未保存**')
     set(state => ({
       messages: state.messages.map((m, i) =>
         i === messageIndex ? { ...m, saveState: 'dismissed', content: newContent } : m
