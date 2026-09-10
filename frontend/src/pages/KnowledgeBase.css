@@ -698,6 +698,10 @@
 .chat-history-bar.collapsed .conv-list,
 .chat-history-bar.collapsed .ch-title svg { display:none; }
 .chat-history-bar.collapsed .ch-title { justify-content:center; padding:0; }
+.chat-history-bar.collapsed .conv-item { background:none !important; border-color:transparent !important; }
+.chat-history-bar.collapsed .conv-item.active { background:none !important; }
+.chat-history-bar.collapsed .conv-item * { color:transparent !important; }
+.chat-history-bar.collapsed .conv-item { cursor:default; pointer-events:none; height:0; overflow:hidden; margin:0; padding:0; border:none; }
 .ch-collapse-btn {
   width:22px; height:22px; border:none; border-radius:4px;
   background:none; color:var(--text-light); cursor:pointer;
@@ -708,10 +712,10 @@
 
 /* 对话节点导航：左侧竖轨 */
 .chat-node-track {
-  position:fixed; left:282px; top:50%; transform:translateY(-50%); z-index:50;
-  display:flex; flex-direction:column; gap:8px; align-items:center;
-  padding:8px 4px; background:var(--bg-card); border:1px solid var(--border);
-  border-radius:12px; box-shadow:var(--shadow-sm); max-height:60vh; overflow-y:auto;
+  position:absolute; left:6px; top:50%; transform:translateY(-50%); z-index:5;
+  display:flex; flex-direction:column; gap:6px; align-items:center;
+  padding:6px 3px; background:var(--bg-card); border:1px solid var(--border);
+  border-radius:10px; box-shadow:var(--shadow-sm); max-height:55vh; overflow-y:auto;
 }
 .chat-node-dot {
   width:8px; height:8px; border-radius:50%; border:none;
@@ -719,6 +723,7 @@
   transition:all var(--duration-fast) var(--ease);
 }
 .chat-node-dot:hover { background:var(--accent); transform:scale(1.6); }
+.chat-node-dot.current { background:var(--accent); transform:scale(1.4); box-shadow:0 0 0 3px var(--accent-glow); }
 
 /* 对话沉淀笔记选择弹窗 */
 .conv-notes-modal {

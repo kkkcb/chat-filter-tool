@@ -89,6 +89,33 @@ export default function KnowledgeBase() {
   useEffect(() => { scrollToBottom() }, [messages])
 
   // 加载选中的对话历史（详情不再含 raw 大字段，双击时按需拉取）
+  // 节点轨当前位置：滚动时计算视口内最近的用户消息
+  const updateCurrentNode = useCallback(() => {
+    const el = messagesRef.current
+    if (!el) return
+    const viewport = el.scrollTop + el.clientHeight / 2
+    const rows = [...el.querySelectorAll('[data-msg-idx]')]
+    let closest = -1
+    let closestDist = Infinity
+    for (const row of rows) {
+      const idx = parseInt(row.dataset.msgIdx, 10)
+      const msg = messages[idx]
+      if (!msg || msg.role !== 'user' || !msg.content) continue
+      const rect = row.offsetTop
+      const dist = Math.abs(rect - viewport)
+      if (dist < closestDist) { closestDist = dist; closest = idx }
+    }
+    setCurrentNodeIdx(closest)
+  }, [messages])
+
+  useEffect(() => {
+    const el = messagesRef.current
+    if (!el) return
+    el.addEventListener('scroll', updateCurrentNode, { passive: true })
+    updateCurrentNode()
+    return () => el.removeEventListener('scroll', updateCurrentNode)
+  }, [updateCurrentNode])
+
   const checkConvNotes = useCallback(async (id) => {
     if (!id) { setConvNotesCount(0); return }
     try {
@@ -383,7 +410,8 @@ export default function KnowledgeBase() {
   }
 
   const [askFloat, setAskFloat] = useState(null)
-  const [attachments, setAttachments] = useState([]) // 上传的文件 [{name, url, is_text, text_content, size}]
+  const [attachments, setAttachments] = useState([]) // 上传的文件
+  const [currentNodeIdx, setCurrentNodeIdx] = useState(-1) // 当前视口的用户消息节点 [{name, url, is_text, text_content, size}]
   const [convNotes, setConvNotes] = useState(null) // 弹窗：对话沉淀的笔记列表
   const [convNotesCount, setConvNotesCount] = useState(0)
 
@@ -596,7 +624,27 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           </div>
         </div>
 
-        <div className="chat-page-messages" ref={messagesRef} onScroll={handleMessagesScroll}>
+        <div className="chat-page-messages" ref={messagesRef} onScroll={handleMessagesScroll} style={{ position: 'relative' }}>
+          {/* 对话节点导航：紧贴消息区左侧，每个用户问题一个节点 */}
+          {messages.filter(m => m.role === 'user' && m.content).length > 1 && !readingMode && (
+            <div className="chat-node-track">
+              {messages.map((msg, i) => {
+                if (msg.role !== 'user' || !msg.content) return null
+                const label = (typeof msg.content === 'string' ? msg.content : '').slice(0, 16)
+                return (
+                  <button
+                    key={msg.id || i}
+                    className={`chat-node-dot ${i === currentNodeIdx ? 'current' : ''}`}
+                    title={label}
+                    onClick={() => {
+                      const el = document.querySelector(`[data-msg-idx="${i}"]`)
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }}
+                  />
+                )
+              })}
+            </div>
+          )}
           {!hasChat ? (
             <div className="chat-welcome">
               <Sparkles size={40} strokeWidth={1.5} />
@@ -637,27 +685,6 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
             ))
           )}
         </div>
-
-        {/* 对话节点导航：左侧竖轨，每个用户问题一个节点，点击跳转 */}
-        {messages.filter(m => m.role === 'user' && m.content).length > 1 && !readingMode && (
-          <div className="chat-node-track">
-            {messages.map((msg, i) => {
-              if (msg.role !== 'user' || !msg.content) return null
-              const label = (typeof msg.content === 'string' ? msg.content : '').slice(0, 16)
-              return (
-                <button
-                  key={msg.id || i}
-                  className="chat-node-dot"
-                  title={label}
-                  onClick={() => {
-                    const el = document.querySelector(`[data-msg-idx="${i}"]`)
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                  }}
-                />
-              )
-            })}
-          </div>
-        )}
 
         {/* 一次性标记导航（右侧悬浮，会话级） */}
         {bookmarks.length > 0 && (
