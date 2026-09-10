@@ -49,7 +49,7 @@ async def update_material(
 ):
     """编辑素材（改分类/标签）"""
     svc = MaterialService(db)
-    result = svc.update(material_id, category=req.category, tags=req.tags)
+    result = svc.update(material_id, category=req.category, tags=req.tags, summary=req.summary)
     if not result:
         raise HTTPException(status_code=404, detail="素材不存在")
     return result

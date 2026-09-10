@@ -19,6 +19,7 @@ class MaterialOut(BaseModel):
 class MaterialUpdate(BaseModel):
     category: str | None = None
     tags: list[str] | None = None
+    summary: str | None = None   # 大纲/概要可编辑（用户读后补想法）
 
 
 class StatsResponse(BaseModel):

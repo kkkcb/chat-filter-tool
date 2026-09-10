@@ -299,13 +299,15 @@ class MaterialService:
 
         return {"success": True, "entry": self._to_dict(material)}
 
-    def update(self, material_id: int, category: str = None, tags: list = None) -> dict | None:
-        """更新素材分类/标签"""
+    def update(self, material_id: int, category: str = None, tags: list = None, summary: str = None) -> dict | None:
+        """更新素材分类/标签/大纲"""
         m = self.db.query(Material).filter(Material.id == material_id).first()
         if not m:
             return None
         if category:
             m.category = category
+        if summary is not None:
+            m.summary = summary
         if tags is not None:
             m.tags = json.dumps(tags, ensure_ascii=False)
         m.updated_at = datetime.now().isoformat()
