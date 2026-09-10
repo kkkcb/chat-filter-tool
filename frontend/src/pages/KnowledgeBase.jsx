@@ -12,6 +12,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { getMessage } from '../api/conversations'
 import { useNoteStore } from '../stores/noteStore'
 import { summarizeConversation, getNotes } from '../api/notes'
+import { getConversationNotes } from '../api/conversations'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown, renderUserText } from '../utils/markdown'
@@ -88,8 +89,32 @@ export default function KnowledgeBase() {
   useEffect(() => { scrollToBottom() }, [messages])
 
   // 加载选中的对话历史（详情不再含 raw 大字段，双击时按需拉取）
+  const checkConvNotes = useCallback(async (id) => {
+    if (!id) { setConvNotesCount(0); return }
+    try {
+      const notes = await getConversationNotes(id)
+      setConvNotesCount(notes.length)
+    } catch { setConvNotesCount(0) }
+  }, [])
+
+  const handleShowConvNotes = async () => {
+    if (!activeId) return
+    try {
+      const notes = await getConversationNotes(activeId)
+      if (notes.length === 1) {
+        // 只有一篇 → 直接跳
+        window.dispatchEvent(new CustomEvent('ice:switch-view', { detail: { view: 'notes' } }))
+        setTimeout(() => window.dispatchEvent(new CustomEvent('ice:goto-note', { detail: { id: notes[0].id } })), 150)
+      } else if (notes.length > 1) {
+        // 多篇 → 弹选择
+        setConvNotes(notes)
+      }
+    } catch { toast('获取笔记失败', 'error') }
+  }
+
   const handleSelectConv = async (id) => {
     clearMessages()
+    checkConvNotes(id)
     const detail = await selectConversation(id)
     if (detail?.messages?.length) {
       // 一次性写入全部历史消息，避免逐条 setState 触发多次渲染
@@ -356,6 +381,8 @@ export default function KnowledgeBase() {
   }
 
   const [askFloat, setAskFloat] = useState(null)
+  const [convNotes, setConvNotes] = useState(null) // 弹窗：对话沉淀的笔记列表
+  const [convNotesCount, setConvNotesCount] = useState(0)
 
   const openAskPanel = () => {
     if (!askFloat) return
@@ -457,6 +484,12 @@ ${askPanel.quote}
                 : <NotebookPen size={14} strokeWidth={2} />}
               <span>{summarizing ? '总结中...' : '总结为笔记'}</span>
             </button>
+            {convNotesCount > 0 && (
+              <button className="chat-summarize-btn" onClick={() => { console.log("DBG btn clicked"); handleShowConvNotes() }}
+                title={`本对话已沉淀 ${convNotesCount} 篇笔记`}>
+                <NotebookPen size={14} strokeWidth={2} /> 笔记 ({convNotesCount})
+              </button>
+            )}
             <button
               className={`chat-read-btn ${readingMode ? 'active' : ''}`}
               onClick={() => setReadingMode(r => !r)}
@@ -594,6 +627,30 @@ ${askPanel.quote}
               <button onClick={askQuestion} disabled={askPanel.sending}>
                 {askPanel.sending ? <Loader2 size={13} className="spin-icon" /> : <Send size={13} />}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 对话沉淀笔记选择弹窗（一对多） */}
+        {convNotes && (
+          <div className="detail-modal-overlay" onClick={() => setConvNotes(null)}>
+            <div className="conv-notes-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="conv-notes-header">
+                <span><NotebookPen size={15} strokeWidth={2} /> 本对话沉淀的笔记（{convNotes.length} 篇）</span>
+                <button className="pkb-icon-btn" onClick={() => setConvNotes(null)}><X size={16} strokeWidth={2} /></button>
+              </div>
+              <div className="conv-notes-list">
+                {convNotes.map(n => (
+                  <button key={n.id} className="conv-note-item" onClick={() => {
+                    setConvNotes(null)
+                    window.dispatchEvent(new CustomEvent('ice:switch-view', { detail: { view: 'notes' } }))
+                    setTimeout(() => window.dispatchEvent(new CustomEvent('ice:goto-note', { detail: { id: n.id } })), 150)
+                  }}>
+                    <span className="conv-note-title">{n.title}</span>
+                    {n.category && <span className="conv-note-cat">{n.category}</span>}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

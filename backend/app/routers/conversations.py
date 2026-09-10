@@ -7,6 +7,7 @@ from sqlalchemy import desc, func
 
 from app.core.database import get_db
 from app.models.conversation import Conversation, Message
+from app.models.note import Note
 from app.schemas.conversation import (
     ConversationOut, ConversationDetail, MessageOut,
     CreateConversationRequest, UpdateConversationRequest, ReorderRequest,
@@ -145,6 +146,21 @@ async def update_conversation(conv_id: int, req: UpdateConversationRequest, db: 
         id=conv.id, title=conv.title, position=conv.position or 0,
         created_at=conv.created_at or "", updated_at=conv.updated_at or "",
     )
+
+
+@router.get("/conversations/{conv_id}/notes")
+async def get_conversation_notes(conv_id: int, db: Session = Depends(get_db)):
+    """对话沉淀的所有笔记（对话→笔记反向跳转；一对多时前端弹选择）"""
+    notes = (
+        db.query(Note.id, Note.title, Note.category, Note.updated_at)
+        .filter(Note.source_conversation_id == conv_id)
+        .order_by(Note.updated_at.desc())
+        .all()
+    )
+    return [
+        {"id": r[0], "title": r[1], "category": (r[2] or "").strip(), "updated_at": r[3]}
+        for r in notes
+    ]
 
 
 @router.delete("/conversations/{conv_id}")

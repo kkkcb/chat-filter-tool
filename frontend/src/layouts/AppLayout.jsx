@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import KnowledgeBase from '../pages/KnowledgeBase'
 import PersonalKB from '../pages/PersonalKB'
@@ -11,6 +11,15 @@ import './AppLayout.css'
 
 export default function AppLayout() {
   const [view, setView] = useState('chat')
+
+  // 接收跨页跳转的视图切换事件
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.view) setView(e.detail.view)
+    }
+    window.addEventListener('ice:switch-view', handler)
+    return () => window.removeEventListener('ice:switch-view', handler)
+  }, [])
 
   return (
     <div className="app-layout">

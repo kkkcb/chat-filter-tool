@@ -30,3 +30,7 @@ export const deleteMessage = (id) =>
 /** 更新单条消息内容（交互后回写状态文案，如"已保存到知识库"） */
 export const updateMessageContent = (id, content) =>
   request(`/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ content }) })
+
+/** 对话沉淀的所有笔记（对话→笔记反向跳转） */
+export const getConversationNotes = (convId) =>
+  request(`/conversations/${convId}/notes`)
