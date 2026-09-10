@@ -398,15 +398,52 @@ export default function KnowledgeBase() {
     if (!askPanel || askPanel.sending || !askInput.trim()) return
     const q = askInput.trim()
     setAskInput('')
-    setAskPanel(p => ({ ...p, messages: [...p.messages, { role: 'user', content: q }], sending: true }))
+    const userMsg = { role: 'user', content: q }
+    setAskPanel(p => ({ ...p, messages: [...p.messages, userMsg], sending: true }))
     try {
-      const r = await sendChat({ message: `我在阅读一段内容时有个疑问。原文片段：
+      // 构建追问上下文：引用原文 + 之前的追问历史（多轮追问能连贯）
+      const historyText = askPanel.messages
+        .map(m => `${m.role === 'user' ? '问' : '答'}: ${m.content}`)
+        .join('\n')
+      const prompt = `我在阅读一段内容时有疑问，请你帮我解答。
 
+原文片段：
 ${askPanel.quote}
+${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
+我的问题：${q}`
 
-我的问题：${q}`, use_rag: false })
-      const reply = r.reply || '(无回复)'
-      setAskPanel(p => ({ ...p, messages: [...p.messages, { role: 'assistant', content: reply }], sending: false }))
+      // 走流式接口（sendChat 非 stream 版本在此页面未 import，直接 fetch）
+      const token = getAccessToken()
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['X-Access-Token'] = token
+      const resp = await fetch(`${API_PREFIX}/chat/stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ message: prompt, use_rag: false }),
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let reply = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === 'content') reply += evt.data
+            if (evt.type === 'error') throw new Error(evt.data)
+          } catch (e) {
+            if (e.message && !e.message.includes('JSON')) throw e
+          }
+        }
+      }
+      setAskPanel(p => ({ ...p, messages: [...p.messages, { role: 'assistant', content: reply || '(无回复)' }], sending: false }))
     } catch (e) {
       setAskPanel(p => ({ ...p, messages: [...p.messages, { role: 'assistant', content: `追问失败：${e.message}` }], sending: false }))
     }
