@@ -159,6 +159,30 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
             yield f'data: {json.dumps({"type": "saved", "data": "", "message_id": last_id}, ensure_ascii=False)}\n\n'
 
         except Exception as e:
+            # 中止/断连时也保存已生成的部分内容——用户点停止不该丢掉模型输出
+            if full_content.strip():
+                try:
+                    partial_response = json.dumps({
+                        "type": "aborted",
+                        "reply": full_content,
+                        "reasoning_length": len(full_reasoning),
+                        "content_length": len(full_content),
+                        "error": str(e)[:200],
+                    }, ensure_ascii=False, indent=2)
+                    save_message(
+                        db, conv_id, "assistant",
+                        content=full_content,
+                        reasoning=full_reasoning,
+                        message_type="chat",
+                        raw_request=raw_request,
+                        raw_response=partial_response,
+                    )
+                    last_id = db.query(Message.id).filter(
+                        Message.conversation_id == conv_id
+                    ).order_by(Message.id.desc()).limit(1).scalar()
+                    yield f'data: {json.dumps({"type": "saved", "data": "", "message_id": last_id}, ensure_ascii=False)}\n\n'
+                except Exception as save_err:
+                    print(f"[Chat] 中止保存失败: {save_err}")
             yield f'data: {json.dumps({"type": "error", "data": str(e)}, ensure_ascii=False)}\n\n'
 
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers=SSE_HEADERS)
