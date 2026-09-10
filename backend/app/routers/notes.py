@@ -55,6 +55,22 @@ class CategoryCreate(BaseModel):
     name: str
 
 
+class PolishRequest(BaseModel):
+    content: str = ""
+
+
+@router.post("/notes/polish")
+async def polish_note(req: PolishRequest):
+    """AI 一键润色整理笔记正文（不落库——前端对比后由用户决定是否采用）"""
+    from app.services.llm_service import llm_service
+    if not req.content.strip():
+        raise HTTPException(400, "笔记内容为空")
+    result = await llm_service.polish_note(req.content)
+    if not result or not result.strip():
+        raise HTTPException(502, "润色失败，请稍后重试")
+    return {"content": result.strip()}
+
+
 class CategoryRename(BaseModel):
     new_name: str
 

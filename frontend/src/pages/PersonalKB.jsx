@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText, Maximize2, Minimize2, BookOpen,
+  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText, Maximize2, Minimize2, BookOpen, Wand2,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
-import { getNote, uploadNoteImage } from '../api/notes'
+import { getNote, uploadNoteImage, polishNote } from '../api/notes'
+import { diffTexts } from '../utils/diff'
 import { analyzeVision } from '../api/vision'
 import { renderMarkdown } from '../utils/markdown'
 import { toast } from '../components/Toast'
@@ -417,6 +418,8 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const [copied, setCopied] = useState(false)
   const [lightbox, setLightbox] = useState(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const [polishing, setPolishing] = useState(false)
+  const [diffView, setDiffView] = useState(null) // {polished} 润色对比
   const textareaRef = useRef(null)
 
   // 编辑大纲：正文标题（##/###/####）→ 左侧栏点击跳转
@@ -553,6 +556,34 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
       setContent(note.content)
     }
   }, [modal.mode, note])
+
+  // AI 一键润色 → 对比视图（采用与否由用户决定，原文不动）
+  const handlePolish = async () => {
+    if (!content.trim() || polishing) return
+    setPolishing(true)
+    try {
+      const r = await polishNote(content)
+      if (r.content && r.content !== content) {
+        setDiffView({ polished: r.content })
+      } else {
+        toast('润色结果与原文相同，无需修改', 'info')
+      }
+    } catch (e) {
+      toast(e?.message || '润色失败', 'error')
+    }
+    setPolishing(false)
+  }
+
+  // 采用润色：写回编辑器（对比视图关闭）
+  const applyPolish = () => {
+    if (!diffView) return
+    const ta = textareaRef.current
+    const next = diffView.polished
+    setContent(next)
+    setDiffView(null)
+    requestAnimationFrame(() => { ta?.focus(); ta?.setSelectionRange(next.length, next.length) })
+    toast('已采用润色结果（保存前仍可继续编辑）', 'success')
+  }
 
   // 粘贴图片：上传落盘 → 在光标处插入 markdown 引用（正文只存 URL 不存 base64）
   const handleEditorPaste = async (e) => {
@@ -700,7 +731,10 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
               <button title="无序列表" onClick={() => toggleLinePrefix('- ')}>• 列表</button>
               <button title="引用" onClick={() => toggleLinePrefix('> ')}>❝ 引用</button>
               <button title="链接 (Ctrl+K)" onClick={() => wrapSelection('[', '](https://)', '链接文字')}>🔗</button>
-              <span className="pkb-md-hint">Ctrl+B 加粗 · 回车自动续列表</span>
+              <button className="pkb-md-polish" title="AI 一键润色整理" onClick={handlePolish} disabled={polishing}>
+              {polishing ? <Loader2 size={12} className="wx-spin" /> : <Wand2 size={12} />} {polishing ? '润色中' : '✨ 润色'}
+            </button>
+            <span className="pkb-md-hint">Ctrl+B 加粗 · 回车自动续列表</span>
             </div>
             <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown...（可直接粘贴图片）"
               value={content} onChange={e => setContent(e.target.value)} onPaste={handleEditorPaste}
@@ -760,6 +794,38 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
       {/* 图片大图查看 + 提取图中文字 */}
       {lightbox && (
         <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />
+      )}
+
+      {/* AI 润色对比视图 */}
+      {diffView && (
+        <div className="polish-overlay">
+          <div className="polish-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="polish-header">
+              <span><Wand2 size={15} strokeWidth={2} /> 润色对比</span>
+              <div className="polish-header-btns">
+                <button className="polish-btn ghost" onClick={() => setDiffView(null)}>放弃</button>
+                <button className="polish-btn primary" onClick={applyPolish}><Check size={13} /> 采用润色</button>
+              </div>
+            </div>
+            <div className="polish-legend">
+              <span className="lg-del">删除的内容</span>
+              <span className="lg-add">润色新增</span>
+              <span className="lg-count">{(() => {
+                const d = diffTexts(content, diffView.polished)
+                const changes = d.filter(x => x.type !== 'same').length
+                return `${changes} 处修改 / 共 ${d.length} 行`
+              })()}</span>
+            </div>
+            <div className="polish-body">
+              {diffTexts(content, diffView.polished).map((d, i) => {
+                if (d.type === 'same') return <div key={i} className="pl same"><span className="pl-tag" /><span className="pl-old">{d.old || ' '}</span><span className="pl-new">{d.new || ' '}</span></div>
+                if (d.type === 'mod') return <div key={i} className="pl mod"><span className="pl-tag">改</span><span className="pl-old" dangerouslySetInnerHTML={{ __html: d.oldHtml || '' }} /><span className="pl-new" dangerouslySetInnerHTML={{ __html: d.newHtml || '' }} /></div>
+                if (d.type === 'del') return <div key={i} className="pl del"><span className="pl-tag">删</span><span className="pl-old">{d.old}</span><span className="pl-new" /></div>
+                return <div key={i} className="pl add"><span className="pl-tag">增</span><span className="pl-old" /><span className="pl-new">{d.new}</span></div>
+              })}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

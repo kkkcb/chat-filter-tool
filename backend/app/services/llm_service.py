@@ -165,6 +165,24 @@ class LLMService:
 
         return parsed
 
+    async def polish_note(self, content: str) -> str | None:
+        """笔记一键润色整理 — 优化表达与结构，不改原意不丢内容"""
+        prompt = f"""你是一个中文写作润色助手。请润色整理下面这篇笔记。要求：
+1. 修正错别字、标点和语病，让表达更通顺精炼
+2. 优化段落与标题层级（可用 ## / ### 组织结构），让笔记更有条理
+3. **保持 Markdown 格式**：代码块、命令、链接、图片引用（![..](..)）一律原样保留，一个字符都不能改
+4. **不添加原文没有的信息**，不删减有效内容；列表要点可合并同类，但语义不能丢
+5. 保留原文的第一人称语气和术语习惯
+
+直接返回润色后的完整 Markdown 正文，不要任何解释或代码块包裹。
+
+笔记内容：
+{content[:30000]}"""
+        return await self._call(
+            [{"role": "user", "content": prompt}],
+            temperature=0.3, timeout=120
+        )
+
     async def summarize_note(self, transcript: str, instruction: str = "",
                              existing_categories: list | None = None) -> dict | None:
         """把对话记录总结成个人知识库笔记（标题/标签/分类/Markdown 正文）"""
