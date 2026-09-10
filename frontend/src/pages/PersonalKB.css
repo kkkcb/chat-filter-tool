@@ -543,3 +543,11 @@
 .pkb-edit-preview code { background:var(--bg-muted); padding:1px 5px; border-radius:4px; font-family:var(--font-mono); font-size:12px; }
 .pkb-edit-preview pre { background:var(--bg-muted); border-radius:6px; padding:10px; overflow-x:auto; }
 .pkb-edit-preview blockquote { border-left:3px solid var(--accent); padding-left:12px; color:var(--text-muted); margin:8px 0; }
+
+/* 自动保存徽标 */
+.pkb-autosave-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:11px; font-weight:500; color:var(--success);
+  background:rgba(16,185,129,.08); padding:3px 10px; border-radius:10px;
+  margin-left:10px;
+}

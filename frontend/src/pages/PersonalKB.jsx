@@ -532,21 +532,54 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     }
   }
 
+  // ===== 自动保存（编辑态：内容变化后 debounce 静默保存；新建先创建再持续更新）=====
+
+  const [localId, setLocalId] = useState(modal.id || null)
+  const [lastSavedAt, setLastSavedAt] = useState(null)
+  const autoSaveTimer = useRef(null)
+  const latestForm = useRef({ title: '', content: '', tags: '', category: '' })
+  latestForm.current = { title, content, tags: tagsInput, category }
+
+  const doAutoSave = async (silent = true) => {
+    const { title: t, content: c, tags: ti, category: ca } = latestForm.current
+    if (!t.trim()) return // 标题空时跳过（还没想好名字）
+    try {
+      const tags = ti.split(/[,，\s]+/).filter(Boolean)
+      const saved = await saveNote(
+        { title: t.trim(), content: c, tags, category: ca.trim() },
+        localId
+      )
+      if (!localId) setLocalId(saved.id) // 新建 → 转编辑模式
+      setLastSavedAt(new Date())
+      if (!silent) toast('笔记已保存', 'success')
+    } catch (e) {
+      if (!silent) toast(e?.message || '保存失败', 'error')
+      else console.warn('[autosave]', e?.message)
+    }
+  }
+
+  // 表单变化 → 800ms debounce 自动保存（仅编辑态）
+  useEffect(() => {
+    if (!editing) return
+    if (modal.mode === 'edit' && note?.content == null) return // 正文还没加载完
+    clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => { doAutoSave(true) }, 800)
+    return () => clearTimeout(autoSaveTimer.current)
+  }, [title, content, tagsInput, category, editing])
+
+  // 关闭弹窗时 flush 未保存的变更
+  const handleClose = () => {
+    clearTimeout(autoSaveTimer.current)
+    if (editing) doAutoSave(true) // fire-and-forget
+    onClose()
+  }
+
   const handleSave = async () => {
     if (!title.trim()) { toast('请填写标题', 'error'); return }
     setSaving(true)
-    try {
-      const tags = tagsInput.split(/[,，\s]+/).filter(Boolean)
-      await saveNote(
-        { title: title.trim(), content, tags, category: category.trim() },
-        modal.mode === 'edit' ? modal.id : null
-      )
-      toast(modal.mode === 'edit' ? '笔记已更新' : '笔记已创建', 'success')
-      onClose()
-    } catch (e) {
-      toast(e?.message || '保存失败', 'error')
-    }
+    await doAutoSave(false)
     setSaving(false)
+    onClose()
   }
 
   const handleDelete = async () => {
@@ -579,9 +612,14 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
         <div className="pkb-modal-header">
           <span className="pkb-modal-title">
             {editing
-              ? (modal.mode === 'create' ? '新建笔记' : '编辑笔记')
+              ? (localId ? '编辑笔记' : '新建笔记')
               : (note?.source_conversation_id ? '对话沉淀笔记' : '笔记')}
           </span>
+          {editing && lastSavedAt && (
+            <span className="pkb-autosave-badge">
+              <Check size={11} strokeWidth={2.4} /> 已自动保存 {lastSavedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
           <div className="pkb-modal-actions">
             {!editing && note && (
               <>
@@ -600,7 +638,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
               title={fullscreen ? '退出全屏' : '全屏（沉浸编辑/阅读）'}>
               {fullscreen ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
             </button>
-            <button className="pkb-icon-btn" onClick={onClose}><X size={17} strokeWidth={2} /></button>
+            <button className="pkb-icon-btn" onClick={handleClose}><X size={17} strokeWidth={2} /></button>
           </div>
         </div>
 
@@ -669,7 +707,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
             <div className="pkb-editor-footer">
               <span className="pkb-editor-hint">{content.length} 字 · Markdown</span>
               <div className="pkb-editor-btns">
-                <button className="pkb-btn-secondary" onClick={onClose}>取消</button>
+                <button className="pkb-btn-secondary" onClick={handleClose}>关闭</button>
                 <button className="pkb-btn-primary" onClick={handleSave} disabled={saving}>
                   {saving ? <Loader2 size={14} strokeWidth={2.5} className="wx-spin" /> : <Check size={14} strokeWidth={2.5} />}
                   保存
