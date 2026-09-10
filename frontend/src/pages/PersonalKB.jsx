@@ -401,6 +401,7 @@ function NoteCard({ note, onOpen, onDelete }) {
 }
 
 /* === 查看/编辑/新建 弹窗 === */
+const NL = '\n'  // 换行常量
 function NoteModal({ modal, notes, onClose, onEdit }) {
   const { saveNote, removeNote, stats } = useNoteStore()
   // 列表行（即时渲染头部），详情打开后异步补全正文
@@ -428,6 +429,90 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
       return text ? [{ level: m[1].length, text, line: idx }] : []
     })
   }, [content, editing])
+
+  // ===== Markdown 编辑辅助：包裹选区 / 行前缀切换 / 工具栏与快捷键共用 =====
+
+  const wrapSelection = (before, after = before, placeholder = '文本') => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const s0 = ta.selectionStart
+    const e0 = ta.selectionEnd
+    const selected = content.slice(s0, e0)
+    const inner = selected || placeholder
+    const next = content.slice(0, s0) + before + inner + after + content.slice(e0)
+    setContent(next)
+    requestAnimationFrame(() => {
+      ta.focus()
+      ta.setSelectionRange(s0 + before.length, s0 + before.length + inner.length)
+    })
+  }
+
+  const toggleLinePrefix = (prefix) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const pos = ta.selectionStart
+    const lineStart = content.lastIndexOf(NL, pos - 1) + 1
+    const nl = content.indexOf(NL, pos)
+    const lineEnd = nl === -1 ? content.length : nl
+    const line = content.slice(lineStart, lineEnd)
+    const stripped = line.replace(/^#{1,6}\s+/, '').replace(/^[-*>]\s+/, '')
+    const has = line.startsWith(prefix)
+    const newLine = has ? stripped : prefix + stripped
+    const next = content.slice(0, lineStart) + newLine + content.slice(lineEnd)
+    setContent(next)
+    requestAnimationFrame(() => {
+      ta.focus()
+      const delta = newLine.length - line.length
+      ta.setSelectionRange(pos + delta, pos + delta)
+    })
+  }
+
+  const insertAtCursor = (text) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const pos = ta.selectionStart
+    const next = content.slice(0, pos) + text + content.slice(pos)
+    setContent(next)
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(pos + text.length, pos + text.length) })
+  }
+
+  const handleEditorKeyDown = (e) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      const k = e.key.toLowerCase()
+      if (k === 'b') { e.preventDefault(); wrapSelection('**'); return }
+      if (k === 'i') { e.preventDefault(); wrapSelection('*'); return }
+      if (k === 'k') { e.preventDefault(); wrapSelection('[', '](https://)', '链接文字'); return }
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+      const pos = ta.selectionStart
+      const lineStart = content.lastIndexOf(NL, pos - 1) + 1
+      const curLine = content.slice(lineStart, pos)
+      const m = curLine.match(/^(\s*)([-*]|\d+\.|>)\s+/)
+      if (m) {
+        e.preventDefault()
+        const rest = curLine.slice(m[0].length)
+        let next, caret
+        if (!rest.trim()) {
+          // 空列表项回车 = 退出列表
+          next = content.slice(0, lineStart) + content.slice(pos)
+          caret = lineStart
+        } else {
+          const bullet = /^\d+\.$/.test(m[2]) ? String(parseInt(m[2], 10) + 1) + '.' : m[2]
+          const insert = NL + m[1] + bullet + ' '
+          next = content.slice(0, pos) + insert + content.slice(pos)
+          caret = pos + insert.length
+        }
+        // 直接 setState 在合成 keydown 后有 DOM 值打回的时序问题——
+        // 用原生 setter + input 事件驱动受控更新（本页已验证可靠）
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+        setter.call(ta, next)
+        ta.dispatchEvent(new Event('input', { bubbles: true }))
+        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(caret, caret) })
+      }
+    }
+  }
 
   const jumpToOutline = (h) => {
     const ta = textareaRef.current
@@ -601,8 +686,25 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                   value={tagsInput} onChange={e => setTagsInput(e.target.value)} />
               </div>
             </div>
+            <div className="pkb-md-toolbar">
+              <button title="二级标题" onClick={() => toggleLinePrefix('## ')}>H2</button>
+              <button title="三级标题" onClick={() => toggleLinePrefix('### ')}>H3</button>
+              <span className="pkb-md-sep" />
+              <button title="粗体 (Ctrl+B)" onClick={() => wrapSelection('**')}><b>B</b></button>
+              <button title="斜体 (Ctrl+I)" onClick={() => wrapSelection('*')}><i>I</i></button>
+              <button title="删除线" onClick={() => wrapSelection('~~')}><s>S</s></button>
+              <span className="pkb-md-sep" />
+              <button title="行内代码" onClick={() => wrapSelection('`')}><code>{'<>'}</code></button>
+              <button title="代码块" onClick={() => insertAtCursor(NL + '```' + NL + '代码' + NL + '```' + NL)}>块</button>
+              <span className="pkb-md-sep" />
+              <button title="无序列表" onClick={() => toggleLinePrefix('- ')}>• 列表</button>
+              <button title="引用" onClick={() => toggleLinePrefix('> ')}>❝ 引用</button>
+              <button title="链接 (Ctrl+K)" onClick={() => wrapSelection('[', '](https://)', '链接文字')}>🔗</button>
+              <span className="pkb-md-hint">Ctrl+B 加粗 · 回车自动续列表</span>
+            </div>
             <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown...（可直接粘贴图片）"
-              value={content} onChange={e => setContent(e.target.value)} onPaste={handleEditorPaste} spellCheck={false} />
+              value={content} onChange={e => setContent(e.target.value)} onPaste={handleEditorPaste}
+              onKeyDown={handleEditorKeyDown} spellCheck={false} />
             {/* 编辑态实时图片条：正文中引用的图片即时可见（缩略，点击放大） */}
             {(() => {
               const urls = [...content.matchAll(/!\[[^\]]*\]\((\/api\/notes\/images\/[^)\s]+|https?:\/\/[^)\s]+)\)/g)].map(m => m[1])

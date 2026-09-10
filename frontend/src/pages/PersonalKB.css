@@ -440,3 +440,26 @@
 .pkb-view-tab.active {
   background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;
 }
+
+/* Markdown 编辑工具栏 */
+.pkb-md-toolbar {
+  display:flex; align-items:center; gap:3px; flex-wrap:wrap;
+  margin:10px 24px 0; padding:4px 6px;
+  background:var(--bg-muted); border:1px solid var(--border);
+  border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+  border-bottom:none;
+}
+.pkb-md-toolbar button {
+  min-width:26px; height:24px; padding:0 7px; border:none; border-radius:5px;
+  background:none; color:var(--text-secondary); cursor:pointer;
+  font-size:12px; font-family:var(--font); line-height:1;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:all var(--duration-fast) var(--ease);
+}
+.pkb-md-toolbar button:hover { background:var(--bg-card); color:var(--accent); box-shadow:var(--shadow-sm); }
+.pkb-md-toolbar button code { font-family:var(--font-mono); font-size:11px; }
+.pkb-md-sep { width:1px; height:14px; background:var(--border); margin:0 3px; }
+.pkb-md-hint { margin-left:auto; font-size:10.5px; color:var(--text-light); padding-right:4px; }
+.pkb-md-toolbar + .pkb-edit-content {
+  margin-top:0; border-top-left-radius:0; border-top-right-radius:0;
+}
