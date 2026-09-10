@@ -440,6 +440,18 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     })
   }, [content, editing])
 
+  // 打开已有笔记 → 拉取完整正文（列表接口只含摘要）
+  useEffect(() => {
+    if (!modal.id) return
+    let cancelled = false
+    setLoadingNote(true)
+    getNote(modal.id)
+      .then(full => { if (!cancelled && full) setNote(full) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingNote(false) })
+    return () => { cancelled = true }
+  }, [modal.id])
+
   // ===== Tiptap 命令桥：工具栏按钮驱动所见即所得编辑器 =====
 
   const tp = () => editorRef.current?.chain().focus()
