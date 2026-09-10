@@ -624,27 +624,27 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           </div>
         </div>
 
-        <div className="chat-page-messages" ref={messagesRef} onScroll={handleMessagesScroll} style={{ position: 'relative' }}>
-          {/* 对话节点导航：紧贴消息区左侧，每个用户问题一个节点 */}
-          {messages.filter(m => m.role === 'user' && m.content).length > 1 && !readingMode && (
-            <div className="chat-node-track">
-              {messages.map((msg, i) => {
-                if (msg.role !== 'user' || !msg.content) return null
-                const label = (typeof msg.content === 'string' ? msg.content : '').slice(0, 16)
-                return (
-                  <button
-                    key={msg.id || i}
-                    className={`chat-node-dot ${i === currentNodeIdx ? 'current' : ''}`}
-                    title={label}
-                    onClick={() => {
-                      const el = document.querySelector(`[data-msg-idx="${i}"]`)
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                    }}
-                  />
-                )
-              })}
-            </div>
-          )}
+        {/* 对话节点导航：紧贴消息区左侧（在滚动容器外，不随内容滚动消失） */}
+        {messages.filter(m => m.role === 'user' && m.content).length > 1 && !readingMode && (
+          <div className="chat-node-track">
+            {messages.map((msg, i) => {
+              if (msg.role !== 'user' || !msg.content) return null
+              const label = (typeof msg.content === 'string' ? msg.content : '').slice(0, 16)
+              return (
+                <button
+                  key={msg.id || i}
+                  className={`chat-node-dot ${i === currentNodeIdx ? 'current' : ''}`}
+                  title={label}
+                  onClick={() => {
+                    const el = document.querySelector(`[data-msg-idx="${i}"]`)
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}
+                />
+              )
+            })}
+          </div>
+        )}
+        <div className="chat-page-messages" ref={messagesRef} onScroll={handleMessagesScroll}>
           {!hasChat ? (
             <div className="chat-welcome">
               <Sparkles size={40} strokeWidth={1.5} />

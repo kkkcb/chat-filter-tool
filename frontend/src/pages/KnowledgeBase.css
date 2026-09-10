@@ -712,7 +712,7 @@
 
 /* 对话节点导航：左侧竖轨 */
 .chat-node-track {
-  position:absolute; left:6px; top:50%; transform:translateY(-50%); z-index:5;
+  position:absolute; left:4px; top:50%; transform:translateY(-50%); z-index:10;
   display:flex; flex-direction:column; gap:6px; align-items:center;
   padding:6px 3px; background:var(--bg-card); border:1px solid var(--border);
   border-radius:10px; box-shadow:var(--shadow-sm); max-height:55vh; overflow-y:auto;
