@@ -31,8 +31,8 @@ class ClipService:
             return await ClipService._fetch_webpage(url)
 
     @staticmethod
-    async def _fetch_html(url: str, timeout: int = 15) -> str | None:
-        """获取网页 HTML"""
+    async def _fetch_html(url: str, timeout: int = 40) -> str | None:
+        """获取网页 HTML（大页面如微信长文可达数 MB，timeout 给足；失败重试一次）"""
         headers = {
             # 完整真实的浏览器 UA——残缺 UA（以 AppleWebKit/537.36 结尾）会被
             # 微信等站点的风控识别为机器人，间歇性 403
@@ -40,14 +40,23 @@ class ClipService:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         }
-        try:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-                resp = await client.get(url, headers=headers)
-                if resp.status_code == 200:
-                    resp.encoding = resp.charset_encoding or "utf-8"
-                    return resp.text
-        except Exception as e:
-            print(f"[Clip] 获取失败 {url}: {e}")
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                    resp = await client.get(url, headers=headers)
+                    if resp.status_code == 200:
+                        # 不走 httpx 的 encoding 属性——畸形 Content-Type 头（实测
+                        # 微信部分响应解析出 "utf-8, text/html"）会让它抛
+                        # unknown encoding。直接按字节解码，utf-8 → gb18030 兜底
+                        raw = resp.content
+                        for enc in ("utf-8", "gb18030"):
+                            try:
+                                return raw.decode(enc)
+                            except UnicodeDecodeError:
+                                continue
+                        return raw.decode("utf-8", errors="replace")
+            except Exception as e:
+                print(f"[Clip] 获取失败(第{attempt + 1}次) {url}: {e}")
         return None
 
     @staticmethod

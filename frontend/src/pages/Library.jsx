@@ -242,7 +242,7 @@ function MaterialCard({ material: m, isExpanded, onToggle, onDelete, onContextMe
           <div className="mc-detail">
             {loadingDetail && <div className="mc-detail-loading">加载详情...</div>}
             {!loadingDetail && detail?.content && (
-              <div className="mc-detail-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.content.substring(0, 2000)) }} />
+              <div className="mc-detail-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.content) }} />
             )}
             {!loadingDetail && !detail?.content && <div className="mc-detail-empty">暂无正文内容</div>}
             <div className="mc-detail-actions">
