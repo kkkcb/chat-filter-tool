@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText, Maximize2, Minimize2, BookOpen, Wand2,
+  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText, Maximize2, Minimize2, BookOpen, MessageCircleQuestion, Wand2,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
-import { getNote, uploadNoteImage, polishNote } from '../api/notes'
+import { getNote, uploadNoteImage, polishNote, getNoteSource } from '../api/notes'
 import { diffTexts } from '../utils/diff'
 import { analyzeVision } from '../api/vision'
 import { renderMarkdown } from '../utils/markdown'
@@ -637,6 +637,19 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                 <button className="pkb-icon-btn" onClick={handleCopy} title="复制全文">
                   {copied ? <Check size={15} strokeWidth={2.4} /> : <Copy size={15} strokeWidth={2} />}
                 </button>
+                {note?.source_conversation_id && (
+                  <button className="pkb-icon-btn" onClick={async () => {
+                    try {
+                      const r = await getNoteSource(note.id)
+                      if (r.conversation_id) {
+                        // 跳到对话页（通过全局事件通知切换视图）
+                        window.dispatchEvent(new CustomEvent('ice:goto-conversation', { detail: { id: r.conversation_id } }))
+                      }
+                    } catch { toast('获取来源对话失败', 'error') }
+                  }} title="跳到来源对话">
+                    <MessageCircleQuestion size={15} strokeWidth={2} />
+                  </button>
+                )}
                 <button className="pkb-icon-btn" onClick={() => onEdit(note.id)} title="编辑">
                   <Pencil size={15} strokeWidth={2} />
                 </button>

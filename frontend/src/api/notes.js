@@ -59,3 +59,6 @@ export const uploadNoteImage = async (file) => {
 /** AI 一键润色整理笔记正文 → { content: 润色后全文 }（不落库，对比后由用户决定采用） */
 export const polishNote = (content) =>
   request('/notes/polish', { method: 'POST', body: JSON.stringify({ content }) })
+
+/** 笔记的来源对话（互跳用） */
+export const getNoteSource = (id) => request(`/notes/${id}/source`)

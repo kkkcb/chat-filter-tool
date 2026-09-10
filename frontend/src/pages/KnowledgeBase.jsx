@@ -40,6 +40,7 @@ export default function KnowledgeBase() {
   // pi 式输入面板：/ 命令 与 @ 引用
   const [palette, setPalette] = useState(null) // 'slash' | 'at' | null
   const [readingMode, setReadingMode] = useState(false) // 全屏阅读
+  const [historyCollapsed, setHistoryCollapsed] = useState(false) // 侧栏收起
   const [bookmarks, setBookmarks] = useState([]) // 一次性标记 [{msgId, label}]
   const [askPanel, setAskPanel] = useState(null) // {quote, question, messages: [], sending}
   const [paletteIdx, setPaletteIdx] = useState(0)
@@ -53,6 +54,19 @@ export default function KnowledgeBase() {
   const [detailModal, setDetailModal] = useState(null) // { rawRequest, rawResponse }
 
   useEffect(() => { loadConversations() }, [loadConversations])
+
+  // 接收笔记页的「跳到来源对话」事件
+  useEffect(() => {
+    const handler = (e) => {
+      const { id } = e.detail
+      if (id) {
+        handleSelectConv(id)
+        toast('已跳转到来源对话', 'info')
+      }
+    }
+    window.addEventListener('ice:goto-conversation', handler)
+    return () => window.removeEventListener('ice:goto-conversation', handler)
+  }, [])
 
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
@@ -395,9 +409,13 @@ ${askPanel.quote}
   return (
     <div className={`kb-container kb-chat-layout ${readingMode ? 'reading-mode' : ''}`}>
       {/* === 左侧对话历史栏 === */}
-      <div className="chat-history-bar">
+      <div className={`chat-history-bar ${historyCollapsed ? 'collapsed' : ''}`}>
         <div className="chat-history-header">
-          <span className="ch-title"><History size={15} strokeWidth={2} /> 对话历史</span>
+          <span className="ch-title"><History size={15} strokeWidth={2} /> {historyCollapsed ? '' : '对话历史'}</span>
+            <button className="ch-collapse-btn" onClick={() => setHistoryCollapsed(c => !c)}
+              title={historyCollapsed ? '展开对话历史' : '收起对话历史'}>
+              {historyCollapsed ? '›' : '‹'}
+            </button>
           <button className="ch-new-btn" onClick={handleNewConv} title="新对话">
             <Plus size={16} strokeWidth={2.2} />
           </button>
@@ -512,6 +530,27 @@ ${askPanel.quote}
             ))
           )}
         </div>
+
+        {/* 对话节点导航：左侧竖轨，每个用户问题一个节点，点击跳转 */}
+        {messages.filter(m => m.role === 'user' && m.content).length > 1 && !readingMode && (
+          <div className="chat-node-track">
+            {messages.map((msg, i) => {
+              if (msg.role !== 'user' || !msg.content) return null
+              const label = (typeof msg.content === 'string' ? msg.content : '').slice(0, 16)
+              return (
+                <button
+                  key={msg.id || i}
+                  className="chat-node-dot"
+                  title={label}
+                  onClick={() => {
+                    const el = document.querySelector(`[data-msg-idx="${i}"]`)
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}
+                />
+              )
+            })}
+          </div>
+        )}
 
         {/* 一次性标记导航（右侧悬浮，会话级） */}
         {bookmarks.length > 0 && (

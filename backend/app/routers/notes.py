@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.database import get_db
 from app.services.note_service import NoteService
+from app.models.conversation import Conversation
 from app.schemas.note import NoteCreate, NoteUpdate, SummarizeRequest
 
 router = APIRouter()
@@ -155,6 +156,20 @@ async def update_note(note_id: int, req: NoteUpdate, db: Session = Depends(get_d
     if not result:
         raise HTTPException(status_code=404, detail="笔记不存在")
     return result
+
+
+@router.get("/notes/{note_id}/source")
+async def get_note_source(note_id: int, db: Session = Depends(get_db)):
+    """笔记的来源对话（从对话总结而来的笔记可跳回对话）"""
+    n = db.query(Note).filter(Note.id == note_id).first()
+    if not n:
+        raise HTTPException(404, "笔记不存在")
+    if not n.source_conversation_id:
+        return {"conversation_id": None}
+    conv = db.query(Conversation).filter(Conversation.id == n.source_conversation_id).first()
+    if not conv:
+        return {"conversation_id": n.source_conversation_id, "title": "(对话已删除)"}
+    return {"conversation_id": conv.id, "title": conv.title}
 
 
 @router.delete("/notes/{note_id}")

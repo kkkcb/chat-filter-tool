@@ -690,3 +690,32 @@
 }
 .ask-panel-input button:hover { background:var(--accent-dark); }
 .ask-panel-input button:disabled { opacity:.5; }
+
+/* 对话历史侧栏收起 */
+.chat-history-bar { transition:width var(--duration) var(--ease), min-width var(--duration) var(--ease); overflow:hidden; }
+.chat-history-bar.collapsed { width:32px !important; min-width:32px !important; }
+.chat-history-bar.collapsed .ch-new-btn,
+.chat-history-bar.collapsed .conv-list,
+.chat-history-bar.collapsed .ch-title svg { display:none; }
+.chat-history-bar.collapsed .ch-title { justify-content:center; padding:0; }
+.ch-collapse-btn {
+  width:22px; height:22px; border:none; border-radius:4px;
+  background:none; color:var(--text-light); cursor:pointer;
+  font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
+  transition:all var(--duration-fast) var(--ease);
+}
+.ch-collapse-btn:hover { color:var(--accent); background:var(--bg-muted); }
+
+/* 对话节点导航：左侧竖轨 */
+.chat-node-track {
+  position:fixed; left:282px; top:50%; transform:translateY(-50%); z-index:50;
+  display:flex; flex-direction:column; gap:8px; align-items:center;
+  padding:8px 4px; background:var(--bg-card); border:1px solid var(--border);
+  border-radius:12px; box-shadow:var(--shadow-sm); max-height:60vh; overflow-y:auto;
+}
+.chat-node-dot {
+  width:8px; height:8px; border-radius:50%; border:none;
+  background:var(--border-dark); cursor:pointer; padding:0;
+  transition:all var(--duration-fast) var(--ease);
+}
+.chat-node-dot:hover { background:var(--accent); transform:scale(1.6); }
