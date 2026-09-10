@@ -419,6 +419,10 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const [lightbox, setLightbox] = useState(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [polishing, setPolishing] = useState(false)
+  const [livePreview, setLivePreview] = useState(true)   // 直接显示：停顿后自动渲染
+  const [previewing, setPreviewing] = useState(false)   // 当前是否处于渲染态
+  const previewTimer = useRef(null)
+  const lastCaret = useRef(0)
   const [diffView, setDiffView] = useState(null) // {polished} 润色对比
   const textareaRef = useRef(null)
 
@@ -556,6 +560,34 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
       setContent(note.content)
     }
   }, [modal.mode, note])
+
+  // ===== 直接显示（Obsidian 式）：停顿/失焦自动渲染，点击回到源码续编 =====
+
+  const enterPreview = () => {
+    if (!editing || !livePreview) return
+    lastCaret.current = textareaRef.current?.selectionStart || 0
+    setPreviewing(true)
+  }
+
+  const schedulePreview = () => {
+    clearTimeout(previewTimer.current)
+    if (!livePreview) return
+    previewTimer.current = setTimeout(() => {
+      lastCaret.current = textareaRef.current?.selectionStart || 0
+      setPreviewing(true)
+    }, 900)
+  }
+
+  const backToEdit = () => {
+    clearTimeout(previewTimer.current)
+    setPreviewing(false)
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current
+      if (!ta) return
+      ta.focus()
+      ta.setSelectionRange(lastCaret.current, lastCaret.current)
+    })
+  }
 
   // AI 一键润色 → 对比视图（采用与否由用户决定，原文不动）
   const handlePolish = async () => {
@@ -717,6 +749,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                   value={tagsInput} onChange={e => setTagsInput(e.target.value)} />
               </div>
             </div>
+            {!previewing && (
             <div className="pkb-md-toolbar">
               <button title="二级标题" onClick={() => toggleLinePrefix('## ')}>H2</button>
               <button title="三级标题" onClick={() => toggleLinePrefix('### ')}>H3</button>
@@ -736,9 +769,19 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
             </button>
             <span className="pkb-md-hint">Ctrl+B 加粗 · 回车自动续列表</span>
             </div>
-            <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown...（可直接粘贴图片）"
-              value={content} onChange={e => setContent(e.target.value)} onPaste={handleEditorPaste}
-              onKeyDown={handleEditorKeyDown} spellCheck={false} />
+            )}
+            {previewing ? (
+              <div
+                className="pkb-edit-preview"
+                onClick={backToEdit}
+                title="点击继续编辑"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+              />
+            ) : (
+            <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown...（可直接粘贴图片，停止输入即显示效果）"
+              value={content} onChange={e => { setContent(e.target.value); schedulePreview() }} onPaste={handleEditorPaste}
+              onKeyDown={handleEditorKeyDown} onBlur={enterPreview} spellCheck={false} />
+            )}
             {/* 编辑态实时图片条：正文中引用的图片即时可见（缩略，点击放大） */}
             {(() => {
               const urls = [...content.matchAll(/!\[[^\]]*\]\((\/api\/notes\/images\/[^)\s]+|https?:\/\/[^)\s]+)\)/g)].map(m => m[1])

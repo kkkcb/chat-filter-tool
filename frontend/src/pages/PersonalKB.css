@@ -528,3 +528,18 @@
 .pl.mod .pl-tag { color:var(--accent-dark); }
 .pl del { background:rgba(239,68,68,.25); text-decoration:line-through; border-radius:2px; }
 .pl ins { background:rgba(16,185,129,.25); text-decoration:none; border-radius:2px; color:#064e3b; }
+
+/* 直接显示（渲染态）：停顿后自动渲染，点击回编辑 */
+.pkb-edit-preview {
+  flex:1; margin:12px 24px; padding:16px 18px; overflow-y:auto;
+  background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+  font-size:13.5px; line-height:1.85; color:var(--text);
+  cursor:text; min-height:140px;
+  animation:pkbFadeIn .18s var(--ease);
+}
+.pkb-edit-preview h1, .pkb-edit-preview h2, .pkb-edit-preview h3 { font-size:15px; margin:12px 0 6px; }
+.pkb-edit-preview img { max-width:100%; height:auto; border-radius:8px; margin:8px 0; }
+.pkb-edit-preview ol, .pkb-edit-preview ul { padding-left:22px; margin:6px 0; }
+.pkb-edit-preview code { background:var(--bg-muted); padding:1px 5px; border-radius:4px; font-family:var(--font-mono); font-size:12px; }
+.pkb-edit-preview pre { background:var(--bg-muted); border-radius:6px; padding:10px; overflow-x:auto; }
+.pkb-edit-preview blockquote { border-left:3px solid var(--accent); padding-left:12px; color:var(--text-muted); margin:8px 0; }
