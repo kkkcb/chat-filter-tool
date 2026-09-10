@@ -11,12 +11,14 @@ import { useMaterialStore } from '../stores/materialStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { getMessage } from '../api/conversations'
 import { useNoteStore } from '../stores/noteStore'
-import { summarizeConversation } from '../api/notes'
+import { summarizeConversation, getNotes } from '../api/notes'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown, renderUserText } from '../utils/markdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
+import InputPalette, { SLASH_COMMANDS, paletteKeydown } from '../components/InputPalette'
+import '../components/InputPalette.css'
 import { deleteMessage } from '../api/conversations'
 import './KnowledgeBase.css'
 
@@ -35,6 +37,11 @@ export default function KnowledgeBase() {
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
   const [input, setInput] = useState('')
+  // pi 式输入面板：/ 命令 与 @ 引用
+  const [palette, setPalette] = useState(null) // 'slash' | 'at' | null
+  const [paletteIdx, setPaletteIdx] = useState(0)
+  const [atItems, setAtItems] = useState([])
+  const atSearchTimer = useRef(null)
   const [summarizing, setSummarizing] = useState(false)
   const { loadStats: loadNoteStats } = useNoteStore()
   const messagesRef = useRef(null)
@@ -143,6 +150,83 @@ export default function KnowledgeBase() {
 
   useImagePaste(handleImageFile)
 
+  // ===== pi 式输入面板：/ 命令、@ 引用 =====
+
+  const paletteQuery = (() => {
+    if (palette === 'slash' && input.startsWith('/')) return input.slice(1)
+    if (palette === 'at') {
+      const m = input.match(/@([^@\s]*)$/)
+      return m ? m[1] : ''
+    }
+    return ''
+  })()
+
+  const filteredCount = palette === 'slash'
+    ? SLASH_COMMANDS.filter(c => c.cmd.slice(1).toLowerCase().includes(paletteQuery.toLowerCase())).length
+    : atItems.length
+
+  const detectPalette = (text) => {
+    if (/^\/[^\s]*$/.test(text)) { setPalette('slash'); setPaletteIdx(0); return }
+    if (/@[^@\s]*$/.test(text)) {
+      setPalette('at'); setPaletteIdx(0)
+      const q = (text.match(/@([^@\s]*)$/) || [])[1] || ''
+      clearTimeout(atSearchTimer.current)
+      atSearchTimer.current = setTimeout(async () => {
+        try {
+          const notes = await getNotes({ q, limit: 8 })
+          const items = (notes || []).map(n => ({
+            label: `@${n.title}`, sub: `笔记${n.category ? ' · ' + n.category : ''}`,
+            kind: 'note', title: n.title,
+          }))
+          setAtItems(items)
+        } catch { setAtItems([]) }
+      }, 200)
+      return
+    }
+    setPalette(null)
+  }
+
+  const onInputChanged = (e) => {
+    setInput(e.target.value)
+    detectPalette(e.target.value)
+  }
+
+  const pickSlash = (item) => {
+    setPalette(null); setInput('')
+    const c = item.cmd
+    if (c === '/总结为笔记') { handleSendNote() }
+    else if (c === '/深度思考') { toggleDeepThinking(); toast(deepThinking ? '已关闭深度思考' : '已开启深度思考', 'info') }
+    else if (c === '/引用知识库') { toggleUseRag(); toast(useRag ? '已关闭知识库引用' : '已开启知识库引用', 'info') }
+    else if (c === '/新对话') { handleNewConv() }
+  }
+
+  const pickAt = (item) => {
+    // 把输入尾部 @xx 替换为完整 @标题 （后端解析注入正文）
+    const next = input.replace(/@[^@\s]*$/, item.label + ' ')
+    setInput(next)
+    setPalette(null)
+    textareaRef.current?.focus()
+  }
+
+  const handlePaletteKey = (e) => {
+    if (palette === null) return false
+    if (e.key === 'Escape') { e.preventDefault(); setPalette(null); return true }
+    if (paletteKeydown(palette, e, filteredCount, setPaletteIdx)) return true
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      if (palette === 'slash') {
+        const list = SLASH_COMMANDS.filter(c => c.cmd.slice(1).toLowerCase().includes(paletteQuery.toLowerCase()))
+        const item = list[paletteIdx] || list[0]
+        if (item) pickSlash(item)
+      } else {
+        const item = atItems[paletteIdx] || atItems[0]
+        if (item) pickAt(item)
+      }
+      return true
+    }
+    return false
+  }
+
   const handleSend = async () => {
     const text = input.trim()
     if ((!text && !selectedImage) || isSending) return
@@ -210,7 +294,22 @@ export default function KnowledgeBase() {
     fetchStats()
   }
 
+  const handleSendNote = async () => {
+    const convId = activeId || conversations[0]?.id
+    if (!convId) { toast('当前没有可总结的对话', 'error'); return }
+    setSummarizing(true)
+    try {
+      const data = await summarizeConversation(convId)
+      toast(`已保存笔记「${data.note.title}」`, 'success', 4000)
+      loadNoteStats()
+    } catch (e) {
+      toast(e?.message || '总结失败，请重试', 'error')
+    }
+    setSummarizing(false)
+  }
+
   const handleKeyDown = (e) => {
+    if (handlePaletteKey(e)) return
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
@@ -372,9 +471,21 @@ export default function KnowledgeBase() {
                 e.target.value = ''
               }}
             />
+            {palette && (
+              <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 6 }}>
+                <InputPalette
+                  mode={palette}
+                  query={paletteQuery}
+                  items={atItems.map(a => ({ label: a.label, sub: a.sub }))}
+                  index={paletteIdx}
+                  onPick={palette === 'slash' ? pickSlash : pickAt}
+                  onClose={() => setPalette(null)}
+                />
+              </div>
+            )}
             <textarea ref={textareaRef} className="chat-input" rows="1" value={input}
-              placeholder="提问 · 粘贴链接收藏..."
-              onChange={(e) => { setInput(e.target.value); resize() }}
+              placeholder="提问 · 输入 / 命令、@ 引用笔记素材 · 粘贴链接收藏..."
+              onChange={(e) => { onInputChanged(e); resize() }}
               onKeyDown={handleKeyDown}
             />
             <button className="chat-send" disabled={isSending} onClick={handleSend} title="发送">

@@ -141,3 +141,13 @@ input:focus, textarea:focus { outline:none; }
 @media (prefers-reduced-motion:reduce) {
   * { animation:none !important; transition:none !important; }
 }
+
+/* highlight.js 代码块主题（浅色） */
+pre.hljs { background:#f6f8fa !important; border-radius:8px; padding:12px 14px; overflow-x:auto; }
+pre.hljs code { background:none; padding:0; font-family:var(--font-mono); font-size:12.5px; line-height:1.6; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color:#cf222e; }
+.hljs-string, .hljs-attr { color:#0a3069; }
+.hljs-number, .hljs-symbol { color:#0550ae; }
+.hljs-comment, .hljs-quote { color:#6e7781; font-style:italic; }
+.hljs-title, .hljs-function, .hljs-name { color:#8250df; }
+.hljs-built_in, .hljs-type { color:#953800; }

@@ -142,9 +142,34 @@ class ChatService:
         messages.append({"role": "user", "content": question})
         return messages
 
+    def _resolve_mentions(self, question: str) -> str:
+        """解析消息里的 @标题 引用（pi 式 @ mention）：
+        命中笔记/素材则把正文节选注入为显式上下文，比 RAG 检索更精准。
+        """
+        import re as _re
+        refs = _re.findall(r"@[一-龥A-Za-z0-9_\-·]{2,30}", question)
+        if not refs:
+            return ""
+        parts = []
+        for ref in refs[:3]:  # 最多注入 3 条，防撑爆
+            title = ref[1:]
+            note = self.db.query(Note).filter(Note.title.like(f"%{title}%")).first()
+            if note:
+                parts.append(f"[引用@{note.title}]（个人笔记）\n{(note.content or '')[:1200]}")
+                continue
+            mat = self.db.query(Material).filter(Material.title.like(f"%{title}%")).first()
+            if mat:
+                parts.append(f"[引用@{mat.title}]（素材）\n{(mat.summary or '')[:600]}")
+        if not parts:
+            return ""
+        return "用户在消息里显式引用了以下内容（优先依据它们回答）：\n\n" + "\n\n".join(parts)
+
     async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True):
         """流式知识库对话"""
         rag_context, citations = self._build_rag(question) if use_rag else ("", [])
+        mention_ctx = self._resolve_mentions(question)
+        if mention_ctx:
+            rag_context = (rag_context + "\n\n" + mention_ctx).strip()
         messages = self._build_messages(question, rag_context, history or [])
 
         # 发送引用信息

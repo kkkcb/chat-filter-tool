@@ -1,5 +1,28 @@
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
+import hljs from 'highlight.js/lib/core'
+import javascript from 'highlight.js/lib/languages/javascript'
+import python from 'highlight.js/lib/languages/python'
+import bash from 'highlight.js/lib/languages/bash'
+import json from 'highlight.js/lib/languages/json'
+import xml from 'highlight.js/lib/languages/xml'
+import css from 'highlight.js/lib/languages/css'
+import sql from 'highlight.js/lib/languages/sql'
+
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('js', javascript)
+hljs.registerLanguage('typescript', javascript)
+hljs.registerLanguage('ts', javascript)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('py', python)
+hljs.registerLanguage('bash', bash)
+hljs.registerLanguage('sh', bash)
+hljs.registerLanguage('shell', bash)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('html', xml)
+hljs.registerLanguage('css', css)
+hljs.registerLanguage('sql', sql)
 
 const md = new MarkdownIt({
   html: true,       // 允许我们自己生成的 HTML 标签
@@ -61,10 +84,20 @@ function escapeHtml(s) {
 function protectSegments(text) {
   const segments = []
 
-  // 先保护代码块 ```...```（必须在 inline code 之前）
-  let result = text.replace(/```[\s\S]*?```/g, (match) => {
+  // 先保护代码块 ```lang\ncode\n```（必须在 inline code 之前）
+  // 高亮在恢复阶段做（markdown-it 的 fence 规则见不到占位符）
+  let result = text.replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const id = segments.length
-    segments.push(match)
+    const language = (lang || '').trim()
+    let inner
+    if (language && hljs.getLanguage(language)) {
+      try {
+        inner = hljs.highlight(code, { language, ignoreIllegals: true }).value
+      } catch { inner = escapeHtml(code) }
+    } else {
+      inner = escapeHtml(code)
+    }
+    segments.push(`<pre class="hljs"><code class="language-${language}">${inner}</code></pre>`)
     return `${PH_START}${id}${PH_END}`
   })
 

@@ -451,7 +451,7 @@
 .vision-preset.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); font-weight:600; }
 
 /* === 输入框 === */
-.chat-input-wrap {
+.chat-input-wrap { position:relative;
   display:flex; gap:8px; align-items:flex-end;
   background:var(--bg-muted); border:1px solid var(--border); border-radius:var(--radius-lg); padding:5px 5px 5px 14px;
   transition:border-color var(--duration-fast) var(--ease);
