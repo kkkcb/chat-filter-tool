@@ -427,3 +427,16 @@
 .pkb-outline-item.lv2 { font-weight:600; color:var(--text-secondary); }
 .pkb-outline-item.lv3 { padding-left:22px; }
 .pkb-outline-item.lv4 { padding-left:32px; font-size:11.5px; }
+
+/* 知识库融合视图 Tab（笔记 | 素材） */
+.pkb-view-tabs { display:flex; gap:4px; margin-left:14px; }
+.pkb-view-tab {
+  padding:5px 14px; border:1px solid var(--border); border-radius:8px;
+  background:var(--bg-card); color:var(--text-muted);
+  font-size:12.5px; font-weight:500; font-family:var(--font); cursor:pointer;
+  transition:all var(--duration-fast) var(--ease);
+}
+.pkb-view-tab:hover { border-color:var(--border-dark); color:var(--text); }
+.pkb-view-tab.active {
+  background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;
+}

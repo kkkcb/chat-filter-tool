@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   NotebookPen, Search, Plus, X, Trash2, Pencil, Copy, MessageSquareQuote,
-  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText, Maximize2, Minimize2,
+  Loader2, Check, Clock, FolderOpen, Plug, FolderPlus, ScanText, Maximize2, Minimize2, BookOpen,
 } from 'lucide-react'
 import { useNoteStore } from '../stores/noteStore'
 import { getNote, uploadNoteImage } from '../api/notes'
@@ -10,6 +10,7 @@ import { renderMarkdown } from '../utils/markdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
 import KbApiModal from '../components/KbApiModal'
+import Library from './Library'
 import './PersonalKB.css'
 
 /** 标签配色 — 按标签名 hash 落到固定色板，视觉稳定 */
@@ -64,6 +65,7 @@ export default function PersonalKB() {
   // 弹窗状态：null | {mode:'view', id} | {mode:'edit', id} | {mode:'create'}
   const [modal, setModal] = useState(null)
   const [showApi, setShowApi] = useState(false)
+  const [view, setView] = useState('notes') // notes=笔记 | materials=素材（融合视图）
 
   const reload = useCallback((q, tag, category) => {
     const params = {}
@@ -153,11 +155,33 @@ export default function PersonalKB() {
     .sort((a, b) => b[1] - a[1])
   const uncategorized = (stats.categories || {})[''] || 0
 
+  // 素材视图：直接渲染整个 Library 页（自取数据），包在融合容器里
+  if (view === 'materials') {
+    return (
+      <div className="pkb-container">
+        <div className="pkb-topbar">
+          <div className="pkb-topbar-left">
+            <h2 className="header-title"><BookOpen size={18} strokeWidth={2.2} /> 知识库</h2>
+            <div className="pkb-view-tabs">
+              <button className="pkb-view-tab" onClick={() => setView('notes')}>📝 笔记</button>
+              <button className="pkb-view-tab active">🔗 素材</button>
+            </div>
+          </div>
+        </div>
+        <Library embedded />
+      </div>
+    )
+  }
+
   return (
     <div className="pkb-container">
       <div className="pkb-topbar">
         <div className="pkb-topbar-left">
-          <h2 className="header-title"><NotebookPen size={18} strokeWidth={2.2} /> 个人知识库</h2>
+          <h2 className="header-title"><NotebookPen size={18} strokeWidth={2.2} /> 知识库</h2>
+          <div className="pkb-view-tabs">
+            <button className="pkb-view-tab active">📝 笔记</button>
+            <button className="pkb-view-tab" onClick={() => setView('materials')}>🔗 素材</button>
+          </div>
           <span className="pkb-count">{stats.total} 篇笔记</span>
         </div>
         <div className="pkb-topbar-right">

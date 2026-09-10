@@ -77,7 +77,7 @@ class ChatService:
         )
         if entry.get("extra_text"):
             reply += f"- 附加：{entry['extra_text']}\n"
-        reply += f"\n[查看原文]({url})\n\n---\n**是否保存到素材库？**（保存后在「素材库」页面聚合阅读全文）"
+        reply += f"\n[查看原文]({url})\n\n---\n**是否保存到知识库素材？**（保存后在 知识库 → 素材 聚合看大纲）"
 
         return {
             "type": "link",

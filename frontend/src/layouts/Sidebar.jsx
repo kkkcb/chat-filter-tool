@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Snowflake, BookOpen, PenLine, Library, MessageCircle, MessagesSquare, NotebookPen } from 'lucide-react'
+import { useEffect } from 'react'
+import { Snowflake, BookOpen, PenLine, MessagesSquare, MessageCircle } from 'lucide-react'
 import { useMaterialStore } from '../stores/materialStore'
 import { useNoteStore } from '../stores/noteStore'
 import './Sidebar.css'
@@ -7,7 +7,6 @@ import './Sidebar.css'
 export default function Sidebar({ currentView, onSwitch }) {
   const { stats, fetchStats } = useMaterialStore()
   const { stats: noteStats, loadStats: loadNoteStats } = useNoteStore()
-  const [kbExpanded, setKbExpanded] = useState(true)
 
   useEffect(() => {
     fetchStats()
@@ -15,8 +14,6 @@ export default function Sidebar({ currentView, onSwitch }) {
     const timer = setInterval(() => { fetchStats(); loadNoteStats() }, 30000)
     return () => clearInterval(timer)
   }, [fetchStats, loadNoteStats])
-
-  const isKBSub = ['chat', 'library', 'notes'].includes(currentView)
 
   return (
     <div className="sidebar">
@@ -29,40 +26,21 @@ export default function Sidebar({ currentView, onSwitch }) {
       </div>
 
       <nav className="nav">
-        {/* 知识库分组 */}
+        {/* 对话 */}
         <div
-          className={`nav-group ${isKBSub ? 'active-group' : ''}`}
-          onClick={() => setKbExpanded(!kbExpanded)}
+          className={`nav-item ${currentView === 'chat' ? 'active' : ''}`}
+          onClick={() => onSwitch('chat')}
         >
-          <div className="nav-item nav-group-title">
-            <span className="icon"><BookOpen size={18} strokeWidth={2} /></span>
-            <span>知识库</span>
-            <span className={`nav-group-arrow ${kbExpanded ? 'expanded' : ''}`}>▸</span>
-          </div>
+          <span className="icon"><MessageCircle size={18} strokeWidth={2} /></span> 对话
         </div>
 
-        {kbExpanded && (
-          <div className="nav-sub-items">
-            <div
-              className={`nav-item nav-sub ${currentView === 'library' ? 'active' : ''}`}
-              onClick={() => onSwitch('library')}
-            >
-              <span className="icon"><Library size={16} strokeWidth={2} /></span> 素材库
-            </div>
-            <div
-              className={`nav-item nav-sub ${currentView === 'chat' ? 'active' : ''}`}
-              onClick={() => onSwitch('chat')}
-            >
-              <span className="icon"><MessageCircle size={16} strokeWidth={2} /></span> 对话
-            </div>
-            <div
-              className={`nav-item nav-sub ${currentView === 'notes' ? 'active' : ''}`}
-              onClick={() => onSwitch('notes')}
-            >
-              <span className="icon"><NotebookPen size={16} strokeWidth={2} /></span> 个人知识库
-            </div>
-          </div>
-        )}
+        {/* 知识库（笔记 + 素材融合，页内 Tab 切换） */}
+        <div
+          className={`nav-item ${currentView === 'notes' ? 'active' : ''}`}
+          onClick={() => onSwitch('notes')}
+        >
+          <span className="icon"><BookOpen size={18} strokeWidth={2} /></span> 知识库
+        </div>
 
         {/* 创作区 */}
         <div
@@ -82,8 +60,8 @@ export default function Sidebar({ currentView, onSwitch }) {
       </nav>
 
       <div className="sidebar-stats">
-        <div className="stat-row"><span>素材总数</span><strong>{stats.total}</strong></div>
-        <div className="stat-row"><span>个人笔记</span><strong>{noteStats.total}</strong></div>
+        <div className="stat-row"><span>素材</span><strong>{stats.total}</strong></div>
+        <div className="stat-row"><span>笔记</span><strong>{noteStats.total}</strong></div>
       </div>
     </div>
   )

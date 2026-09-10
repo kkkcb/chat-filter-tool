@@ -17,7 +17,7 @@ const SOURCE_ICONS = {
   web: { label: '网页', color: 'var(--accent)' },
 }
 
-export default function Library() {
+export default function Library({ embedded = false }) {
   const { fetchStats, stats } = useMaterialStore()
   const [materials, setMaterials] = useState([])
   const [loadingMats, setLoadingMats] = useState(true)
@@ -100,7 +100,7 @@ export default function Library() {
     <div className="lib-container">
       <div className="lib-topbar">
         <div className="lib-topbar-left">
-          <h2 className="header-title"><LibraryIcon size={18} strokeWidth={2.2} /> 素材库</h2>
+          {!embedded && <h2 className="header-title"><LibraryIcon size={18} strokeWidth={2.2} /> 素材库</h2>}
           <span className="lib-count">{materials.length} 条素材</span>
           {stats.total > materials.length && materials.length > 0 && (
             <span className="lib-count" title="超过 500 条时仅加载最近 500 条">已加载 {materials.length}/{stats.total}</span>
