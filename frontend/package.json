@@ -14,11 +14,17 @@
     "vite": "^8.2.0"
   },
   "dependencies": {
+    "@tiptap/extension-image": "^3.31.3",
+    "@tiptap/extension-placeholder": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
     "dompurify": "^3.4.13",
     "lucide-react": "^1.28.0",
     "markdown-it": "^15.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tiptap-markdown": "^0.9.0",
     "zustand": "^5.0.14"
   }
 }

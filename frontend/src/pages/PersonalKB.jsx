@@ -12,6 +12,7 @@ import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
 import KbApiModal from '../components/KbApiModal'
 import Library from './Library'
+import TiptapEditor from '../components/TiptapEditor'
 import './PersonalKB.css'
 
 /** 标签配色 — 按标签名 hash 落到固定色板，视觉稳定 */
@@ -419,12 +420,14 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const [lightbox, setLightbox] = useState(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [polishing, setPolishing] = useState(false)
-  const [livePreview, setLivePreview] = useState(true)   // 直接显示：停顿后自动渲染
-  const [previewing, setPreviewing] = useState(false)   // 当前是否处于渲染态
-  const previewTimer = useRef(null)
-  const lastCaret = useRef(0)
+  const editorRef = useRef(null)  // Tiptap 实例（工具栏命令/大纲跳转用）
   const [diffView, setDiffView] = useState(null) // {polished} 润色对比
-  const textareaRef = useRef(null)
+
+  // 分类候选：已有分类在前 + 固定示例（去重）
+  const categoryOptions = [...new Set([
+    ...Object.keys(stats.categories || {}).filter(Boolean),
+    ...CATEGORY_SUGGESTIONS,
+  ])]
 
   // 编辑大纲：正文标题（##/###/####）→ 左侧栏点击跳转
   const outline = useMemo(() => {
@@ -437,162 +440,20 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     })
   }, [content, editing])
 
-  // ===== Markdown 编辑辅助：包裹选区 / 行前缀切换 / 工具栏与快捷键共用 =====
+  // ===== Tiptap 命令桥：工具栏按钮驱动所见即所得编辑器 =====
 
-  const wrapSelection = (before, after = before, placeholder = '文本') => {
-    const ta = textareaRef.current
-    if (!ta) return
-    const s0 = ta.selectionStart
-    const e0 = ta.selectionEnd
-    const selected = content.slice(s0, e0)
-    const inner = selected || placeholder
-    const next = content.slice(0, s0) + before + inner + after + content.slice(e0)
-    setContent(next)
-    requestAnimationFrame(() => {
-      ta.focus()
-      ta.setSelectionRange(s0 + before.length, s0 + before.length + inner.length)
-    })
-  }
-
-  const toggleLinePrefix = (prefix) => {
-    const ta = textareaRef.current
-    if (!ta) return
-    const pos = ta.selectionStart
-    const lineStart = content.lastIndexOf(NL, pos - 1) + 1
-    const nl = content.indexOf(NL, pos)
-    const lineEnd = nl === -1 ? content.length : nl
-    const line = content.slice(lineStart, lineEnd)
-    const stripped = line.replace(/^#{1,6}\s+/, '').replace(/^[-*>]\s+/, '')
-    const has = line.startsWith(prefix)
-    const newLine = has ? stripped : prefix + stripped
-    const next = content.slice(0, lineStart) + newLine + content.slice(lineEnd)
-    setContent(next)
-    requestAnimationFrame(() => {
-      ta.focus()
-      const delta = newLine.length - line.length
-      ta.setSelectionRange(pos + delta, pos + delta)
-    })
-  }
-
-  const insertAtCursor = (text) => {
-    const ta = textareaRef.current
-    if (!ta) return
-    const pos = ta.selectionStart
-    const next = content.slice(0, pos) + text + content.slice(pos)
-    setContent(next)
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(pos + text.length, pos + text.length) })
-  }
-
-  const handleEditorKeyDown = (e) => {
-    const ta = textareaRef.current
-    if (!ta) return
-    // 结构性按键（回车续行/删除/移动光标）不算"输入停顿"——取消挂起的
-    // 自动渲染，否则回车续列表后 ~1s 页面闪切渲染态，像二次刷新
-    if (e.key === 'Enter' || e.key === 'Backspace' || e.key === 'Delete' || e.key.startsWith('Arrow')) {
-      clearTimeout(previewTimer.current)
-    }
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-      const k = e.key.toLowerCase()
-      if (k === 'b') { e.preventDefault(); wrapSelection('**'); return }
-      if (k === 'i') { e.preventDefault(); wrapSelection('*'); return }
-      if (k === 'k') { e.preventDefault(); wrapSelection('[', '](https://)', '链接文字'); return }
-    }
-    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
-      const pos = ta.selectionStart
-      const lineStart = content.lastIndexOf(NL, pos - 1) + 1
-      const curLine = content.slice(lineStart, pos)
-      const m = curLine.match(/^(\s*)([-*]|\d+\.|>)\s+/)
-      if (m) {
-        e.preventDefault()
-        const rest = curLine.slice(m[0].length)
-        let next, caret
-        if (!rest.trim()) {
-          // 空列表项回车 = 退出列表
-          next = content.slice(0, lineStart) + content.slice(pos)
-          caret = lineStart
-        } else {
-          const bullet = /^\d+\.$/.test(m[2]) ? String(parseInt(m[2], 10) + 1) + '.' : m[2]
-          const insert = NL + m[1] + bullet + ' '
-          next = content.slice(0, pos) + insert + content.slice(pos)
-          caret = pos + insert.length
-        }
-        // 直接 setState 在合成 keydown 后有 DOM 值打回的时序问题——
-        // 用原生 setter + input 事件驱动受控更新（本页已验证可靠）
-        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
-        setter.call(ta, next)
-        ta.dispatchEvent(new Event('input', { bubbles: true }))
-        clearTimeout(previewTimer.current) // 续行插入会触发 onChange 调度，这里再取消一次
-        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(caret, caret) })
-      }
-    }
-  }
+  const tp = () => editorRef.current?.chain().focus()
 
   const jumpToOutline = (h) => {
-    const ta = textareaRef.current
-    if (!ta) return
-    // 行高 = font-size(13.5px) × line-height(1.8)；滚动并放置光标到该行
-    const lineHeight = 13.5 * 1.8
-    const before = content.split('\n').slice(0, h.line).join('\n').length
-    ta.focus()
-    ta.setSelectionRange(before + (before ? 1 : 0), before + (before ? 1 : 0))
-    ta.scrollTop = Math.max(0, h.line * lineHeight - 48)
-  }
-
-  // 分类候选：已有分类在前 + 固定示例（去重）
-  const categoryOptions = [...new Set([
-    ...Object.keys(stats.categories || {}).filter(Boolean),
-    ...CATEGORY_SUGGESTIONS,
-  ])]
-
-  // 打开已有笔记 → 拉取完整正文（列表接口只含摘要）
-  useEffect(() => {
-    if (!modal.id) return
-    let cancelled = false
-    setLoadingNote(true)
-    getNote(modal.id)
-      .then(full => { if (!cancelled && full) setNote(full) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoadingNote(false) })
-    return () => { cancelled = true }
-  }, [modal.id])
-
-  useEffect(() => {
-    if (modal.mode === 'create') {
-      setTitle(''); setCategory(''); setTagsInput(''); setContent('')
-    } else if (note?.content != null) {
-      setTitle(note.title)
-      setCategory(note.category || '')
-      setTagsInput((note.tags || []).join(', '))
-      setContent(note.content)
+    // 编辑器内按文本找 heading 节点滚动定位
+    const dom = editorRef.current?.view?.dom
+    if (!dom) return
+    const heads = [...dom.querySelectorAll('h1,h2,h3,h4')]
+    const el = heads.find((x) => (x.textContent || '').trim().startsWith(h.text))
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      editorRef.current?.commands.focus()
     }
-  }, [modal.mode, note])
-
-  // ===== 直接显示（Obsidian 式）：停顿/失焦自动渲染，点击回到源码续编 =====
-
-  const enterPreview = () => {
-    if (!editing || !livePreview) return
-    lastCaret.current = textareaRef.current?.selectionStart || 0
-    setPreviewing(true)
-  }
-
-  const schedulePreview = () => {
-    clearTimeout(previewTimer.current)
-    if (!livePreview) return
-    previewTimer.current = setTimeout(() => {
-      lastCaret.current = textareaRef.current?.selectionStart || 0
-      setPreviewing(true)
-    }, 900)
-  }
-
-  const backToEdit = () => {
-    clearTimeout(previewTimer.current)
-    setPreviewing(false)
-    requestAnimationFrame(() => {
-      const ta = textareaRef.current
-      if (!ta) return
-      ta.focus()
-      ta.setSelectionRange(lastCaret.current, lastCaret.current)
-    })
   }
 
   // AI 一键润色 → 对比视图（采用与否由用户决定，原文不动）
@@ -615,11 +476,8 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   // 采用润色：写回编辑器（对比视图关闭）
   const applyPolish = () => {
     if (!diffView) return
-    const ta = textareaRef.current
-    const next = diffView.polished
-    setContent(next)
+    setContent(diffView.polished) // TiptapEditor 的 value 同步会刷新编辑器
     setDiffView(null)
-    requestAnimationFrame(() => { ta?.focus(); ta?.setSelectionRange(next.length, next.length) })
     toast('已采用润色结果（保存前仍可继续编辑）', 'success')
   }
 
@@ -755,51 +613,35 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                   value={tagsInput} onChange={e => setTagsInput(e.target.value)} />
               </div>
             </div>
-            {!previewing && (
             <div className="pkb-md-toolbar">
-              <button title="二级标题" onClick={() => toggleLinePrefix('## ')}>H2</button>
-              <button title="三级标题" onClick={() => toggleLinePrefix('### ')}>H3</button>
+              <button title="二级标题" onClick={() => tp()?.toggleHeading({ level: 2 }).run()}>H2</button>
+              <button title="三级标题" onClick={() => tp()?.toggleHeading({ level: 3 }).run()}>H3</button>
               <span className="pkb-md-sep" />
-              <button title="粗体 (Ctrl+B)" onClick={() => wrapSelection('**')}><b>B</b></button>
-              <button title="斜体 (Ctrl+I)" onClick={() => wrapSelection('*')}><i>I</i></button>
-              <button title="删除线" onClick={() => wrapSelection('~~')}><s>S</s></button>
+              <button title="粗体 (Ctrl+B)" onClick={() => tp()?.toggleBold().run()}><b>B</b></button>
+              <button title="斜体 (Ctrl+I)" onClick={() => tp()?.toggleItalic().run()}><i>I</i></button>
+              <button title="删除线" onClick={() => tp()?.toggleStrike().run()}><s>S</s></button>
               <span className="pkb-md-sep" />
-              <button title="行内代码" onClick={() => wrapSelection('`')}><code>{'<>'}</code></button>
-              <button title="代码块" onClick={() => insertAtCursor(NL + '```' + NL + '代码' + NL + '```' + NL)}>块</button>
+              <button title="行内代码" onClick={() => tp()?.toggleCode().run()}><code>{'<>'}</code></button>
+              <button title="代码块" onClick={() => tp()?.toggleCodeBlock().run()}>块</button>
               <span className="pkb-md-sep" />
-              <button title="无序列表" onClick={() => toggleLinePrefix('- ')}>• 列表</button>
-              <button title="引用" onClick={() => toggleLinePrefix('> ')}>❝ 引用</button>
-              <button title="链接 (Ctrl+K)" onClick={() => wrapSelection('[', '](https://)', '链接文字')}>🔗</button>
+              <button title="无序列表" onClick={() => tp()?.toggleBulletList().run()}>• 列表</button>
+              <button title="有序列表" onClick={() => tp()?.toggleOrderedList().run()}>1. 序号</button>
+              <button title="引用" onClick={() => tp()?.toggleBlockquote().run()}>❝ 引用</button>
+              <button title="链接" onClick={() => {
+                const url = window.prompt('链接地址（留空取消）')
+                if (url) tp()?.setLink({ href: url }).run()
+              }}>🔗</button>
               <button className="pkb-md-polish" title="AI 一键润色整理" onClick={handlePolish} disabled={polishing}>
-              {polishing ? <Loader2 size={12} className="wx-spin" /> : <Wand2 size={12} />} {polishing ? '润色中' : '✨ 润色'}
-            </button>
-            <span className="pkb-md-hint">Ctrl+B 加粗 · 回车自动续列表</span>
+                {polishing ? <Loader2 size={12} className="wx-spin" /> : <Wand2 size={12} />} {polishing ? '润色中' : '✨ 润色'}
+              </button>
+              <span className="pkb-md-hint">输入 # / 1. / - 加空格即变样式</span>
             </div>
-            )}
-            {previewing ? (
-              <div
-                className="pkb-edit-preview"
-                onClick={backToEdit}
-                title="点击继续编辑"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-              />
-            ) : (
-            <textarea ref={textareaRef} className="pkb-edit-content" placeholder="支持 Markdown...（可直接粘贴图片，停止输入即显示效果）"
-              value={content} onChange={e => { setContent(e.target.value); schedulePreview() }} onPaste={handleEditorPaste}
-              onKeyDown={handleEditorKeyDown} onBlur={enterPreview} spellCheck={false} />
-            )}
-            {/* 编辑态实时图片条：正文中引用的图片即时可见（缩略，点击放大） */}
-            {(() => {
-              const urls = [...content.matchAll(/!\[[^\]]*\]\((\/api\/notes\/images\/[^)\s]+|https?:\/\/[^)\s]+)\)/g)].map(m => m[1])
-              if (!urls.length) return null
-              return (
-                <div className="pkb-edit-images">
-                  {urls.map((u, i) => (
-                    <img key={i} src={u} alt="" onClick={() => setLightbox(u)} title="点击放大" />
-                  ))}
-                </div>
-              )
-            })()}
+            <TiptapEditor
+              value={content}
+              onChange={setContent}
+              onReady={(ed) => { editorRef.current = ed }}
+              placeholder="开始写作：输入 # / ## / 1. / - / > 加空格自动变样式，可直接粘贴图片"
+            />
             <div className="pkb-editor-footer">
               <span className="pkb-editor-hint">{content.length} 字 · Markdown</span>
               <div className="pkb-editor-btns">

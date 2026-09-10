@@ -1,0 +1,43 @@
+/* Tiptap 所见即所得编辑器（飞书式） */
+.tp-editor { flex:1; min-height:0; display:flex; flex-direction:column; margin:0 24px; }
+.tp-loading { padding:40px; text-align:center; color:var(--text-light); font-size:13px; }
+.tp-editor .ProseMirror {
+  flex:1; min-height:180px; outline:none; overflow-y:auto;
+  font-size:14px; line-height:1.8; color:var(--text); padding:14px 16px;
+  background:var(--bg-card); border:1px solid var(--border);
+  border-top:none; border-radius:0 0 var(--radius) var(--radius);
+}
+.tp-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color:var(--text-light); float:left; height:0; pointer-events:none;
+}
+/* 内容样式：写什么立刻像什么 */
+.tp-editor .ProseMirror h1 { font-size:20px; font-weight:700; margin:18px 0 8px; }
+.tp-editor .ProseMirror h2 { font-size:17px; font-weight:700; margin:16px 0 6px; }
+.tp-editor .ProseMirror h3 { font-size:15px; font-weight:600; margin:12px 0 4px; }
+.tp-editor .ProseMirror h4 { font-size:14px; font-weight:600; margin:10px 0 4px; }
+.tp-editor .ProseMirror p { margin:4px 0; }
+.tp-editor .ProseMirror ul, .tp-editor .ProseMirror ol { padding-left:24px; margin:6px 0; }
+.tp-editor .ProseMirror li { margin:2px 0; }
+.tp-editor .ProseMirror li p { margin:0; }
+.tp-editor .ProseMirror blockquote {
+  border-left:3px solid var(--accent); padding-left:12px;
+  color:var(--text-muted); margin:8px 0;
+}
+.tp-editor .ProseMirror code {
+  background:var(--bg-muted); padding:1px 5px; border-radius:4px;
+  font-family:var(--font-mono); font-size:12.5px;
+}
+.tp-editor .ProseMirror pre {
+  background:#15171c; color:#c8cfda; border-radius:8px;
+  padding:12px 14px; font-family:var(--font-mono); font-size:12.5px;
+  overflow-x:auto; margin:8px 0;
+}
+.tp-editor .ProseMirror pre code { background:none; color:inherit; padding:0; }
+.tp-editor .ProseMirror img {
+  max-width:100%; height:auto; border-radius:8px; margin:8px 0; display:block;
+}
+.tp-editor .ProseMirror hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
+.tp-editor .ProseMirror a { color:var(--accent-dark); }
+/* 选中样式 */
+.tp-editor .ProseMirror ::selection { background:rgba(96,165,250,.25); }
