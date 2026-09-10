@@ -3,6 +3,13 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+class FileAttachment(BaseModel):
+    name: str = ""
+    url: str = ""
+    is_text: bool = False
+    text_content: str = ""
+
+
 class ChatRequest(BaseModel):
     message: str = ""
     image: Optional[str] = ""
@@ -10,6 +17,7 @@ class ChatRequest(BaseModel):
     thinking: Optional[bool] = False
     use_rag: Optional[bool] = True   # 是否检索知识库并引用（前端「引用知识库」开关）
     conversation_id: Optional[int] = None
+    files: Optional[list[FileAttachment]] = None  # 上传的文件附件
 
 
 class ChatResponse(BaseModel):

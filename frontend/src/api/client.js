@@ -84,3 +84,18 @@ export async function uploadFile(file) {
   if (!resp.ok) throw new Error('上传失败')
   return resp.json()
 }
+
+/** 通用文件上传（multipart）→ { url, name, is_text, text_content } */
+export async function uploadFileGeneric(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const headers = {}
+  const token = getAccessToken()
+  if (token) headers['X-Access-Token'] = token
+  const resp = await fetch(`${API_PREFIX}/files/upload`, { method: 'POST', body: formData, headers })
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.detail || `上传失败 HTTP ${resp.status}`)
+  }
+  return resp.json()
+}

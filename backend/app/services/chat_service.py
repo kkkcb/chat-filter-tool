@@ -87,7 +87,7 @@ class ChatService:
             "entry": entry,
         }
 
-    async def handle_message_stream(self, message: str, image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True):
+    async def handle_message_stream(self, message: str = "", image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True, files: list | None = None):
         """流式版统一入口 — yield (event_type, data_dict)"""
         if image:
             # 图片不支持流式，降级为普通调用
@@ -101,6 +101,19 @@ class ChatService:
             result = await self._handle_link(url_match.group(0))
             yield ("done", result)
             return
+
+        # 文件附件内容注入
+        if files:
+            file_parts = []
+            for f in files[:3]:  # 最多 3 个文件
+                name = f.get("name", "未知文件")
+                if f.get("is_text") and f.get("text_content"):
+                    file_parts.append(f"--- 文件: {name} ---\n{f['text_content'][:8000]}\n--- 文件结束 ---")
+                else:
+                    size_kb = f.get("size", 0) // 1024
+                    file_parts.append(f"[附件: {name} ({size_kb}KB, 非文本文件)]")
+            if file_parts:
+                message = message + "\n\n以下是用户上传的文件内容：\n\n" + "\n\n".join(file_parts)
 
         # 普通对话走流式
         async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag):

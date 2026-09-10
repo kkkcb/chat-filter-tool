@@ -3,7 +3,7 @@ import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
   Check, Copy, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
-  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion,
+  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion, Paperclip,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
 import { useVisionStore } from '../stores/visionStore'
@@ -332,7 +332,9 @@ export default function KnowledgeBase() {
     resize()
     if (selectedImage) clear()
 
-    await sendMessage(text, img, mode, convId, refreshAfterMessage)
+    const files = attachments.length > 0 ? attachments.map(a => ({ name: a.name, url: a.url, is_text: a.is_text, text_content: a.text_content, size: a.size })) : null
+    setAttachments([])
+    await sendMessage(text, img, mode, convId, refreshAfterMessage, files)
     fetchStats()
   }
 
@@ -381,6 +383,7 @@ export default function KnowledgeBase() {
   }
 
   const [askFloat, setAskFloat] = useState(null)
+  const [attachments, setAttachments] = useState([]) // 上传的文件 [{name, url, is_text, text_content, size}]
   const [convNotes, setConvNotes] = useState(null) // 弹窗：对话沉淀的笔记列表
   const [convNotesCount, setConvNotesCount] = useState(0)
 
@@ -410,6 +413,40 @@ ${askPanel.quote}
   }
 
   const [askInput, setAskInput] = useState('')
+
+  const handleFileUpload = async (fileList) => {
+    const files = [...fileList].filter(f => f.size <= 20 * 1024 * 1024)
+    if (!files.length) { toast('文件过大（最大 20MB）', 'error'); return }
+    for (const f of files) {
+      try {
+        toast(`上传 ${f.name}...`, 'info', 1500)
+        const r = await uploadFileGeneric(f)
+        setAttachments(prev => [...prev, r])
+        toast(`已上传 ${f.name}`, 'success')
+      } catch (e) {
+        toast(`上传 ${f.name} 失败: ${e.message}`, 'error')
+      }
+    }
+  }
+
+  const handleFileInput = (e) => {
+    if (e.target.files?.length) handleFileUpload(e.target.files)
+    e.target.value = '' // 允许重复选择同一文件
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    if (e.dataTransfer.files?.length) handleFileUpload(e.dataTransfer.files)
+  }
+
+  const removeAttachment = (idx) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx))
+  }
 
   const handleKeyDown = (e) => {
     if (handlePaletteKey(e)) return
@@ -683,10 +720,24 @@ ${askPanel.quote}
               ))}
             </div>
           )}
-          <div className="chat-input-wrap">
+          <div className="chat-input-wrap" onDragOver={handleDragOver} onDrop={handleDrop}>
+            {attachments.length > 0 && (
+              <div className="chat-attachments">
+                {attachments.map((a, i) => (
+                  <span key={i} className="chat-attachment">
+                    <span className="att-name">{a.name}</span>
+                    <button className="att-remove" onClick={() => removeAttachment(i)}><X size={11} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
             <button className="chat-clip-btn" onClick={() => fileInputRef.current?.click()} title="上传图片">
               <ImagePlus size={18} strokeWidth={2} />
             </button>
+            <label className="chat-clip-btn" title="上传文件（AI 分析内容）">
+              <input type="file" multiple onChange={handleFileInput} style={{ display: 'none' }} />
+              <Paperclip size={18} strokeWidth={2} />
+            </label>
             <input type="file" ref={fileInputRef} accept="image/*" style={{ display: 'none' }}
               onChange={(e) => {
                 const file = e.target.files?.[0]

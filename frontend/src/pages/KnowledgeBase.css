@@ -742,3 +742,30 @@
 .conv-note-item:hover { background:var(--accent-light); }
 .conv-note-title { flex:1; min-width:0; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .conv-note-cat { font-size:11px; color:var(--accent-dark); background:var(--accent-light); padding:2px 8px; border-radius:8px; flex-shrink:0; }
+
+/* 文件上传 */
+.chat-file-btn {
+  display:flex; align-items:center; justify-content:center;
+  width:32px; height:32px; cursor:pointer; color:var(--text-muted);
+  border-radius:var(--radius-sm); transition:all var(--duration-fast) var(--ease);
+}
+.chat-file-btn:hover { color:var(--accent); background:var(--accent-light); }
+.chat-attachments {
+  display:flex; gap:6px; flex-wrap:wrap; padding:8px 12px 0;
+}
+.chat-attachment {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 10px; background:var(--accent-light);
+  border-radius:6px; font-size:11.5px; color:var(--accent-dark);
+  border:1px solid rgba(59,130,246,.2);
+}
+.att-name { max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.att-remove {
+  width:16px; height:16px; border:none; border-radius:50%;
+  background:rgba(0,0,0,.08); color:var(--text-muted);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  font-size:0; line-height:0;
+}
+.att-remove:hover { background:rgba(220,38,38,.15); color:var(--danger); }
+.chat-input-wrap { border-style:solid; }
+.chat-input-wrap.drag-over { border-color:var(--accent); border-style:dashed; background:var(--accent-light); }
