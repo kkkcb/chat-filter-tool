@@ -3,7 +3,7 @@ import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
   Check, Copy, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
-  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen,
+  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
 import { useVisionStore } from '../stores/visionStore'
@@ -39,6 +39,9 @@ export default function KnowledgeBase() {
   const [input, setInput] = useState('')
   // pi 式输入面板：/ 命令 与 @ 引用
   const [palette, setPalette] = useState(null) // 'slash' | 'at' | null
+  const [readingMode, setReadingMode] = useState(false) // 全屏阅读
+  const [bookmarks, setBookmarks] = useState([]) // 一次性标记 [{msgId, label}]
+  const [askPanel, setAskPanel] = useState(null) // {quote, question, messages: [], sending}
   const [paletteIdx, setPaletteIdx] = useState(0)
   const [atItems, setAtItems] = useState([])
   const atSearchTimer = useRef(null)
@@ -308,6 +311,65 @@ export default function KnowledgeBase() {
     setSummarizing(false)
   }
 
+  // ===== 一次性标记（会话级书签）=====
+
+  const toggleBookmark = (msg, idx) => {
+    setBookmarks(prev => {
+      const exists = prev.find(b => b.msgId === msg.id)
+      if (exists) return prev.filter(b => b.msgId !== msg.id)
+      const label = (msg.content || '').slice(0, 18).replace(/\n/g, ' ')
+      return [...prev, { msgId: msg.id, idx, label }]
+    })
+  }
+
+  const jumpToBookmark = (idx) => {
+    const el = document.querySelector(`[data-msg-idx="${idx}"]`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  // ===== 划词追问 sub-agent =====
+
+  const handleTextSelect = (e, msg, idx) => {
+    const sel = window.getSelection()
+    const text = sel?.toString().trim()
+    if (!text || text.length < 4) { setAskFloat(null); return }
+    // 只在本条消息内选的才弹
+    const range = sel.getRangeAt(0)
+    if (!e.currentTarget.contains(range.commonAncestorContainer)) return
+    // 浮动按钮位置
+    const rect = range.getBoundingClientRect()
+    setAskFloat({ text, x: rect.left + rect.width / 2, y: rect.top - 36, msg, idx })
+  }
+
+  const [askFloat, setAskFloat] = useState(null)
+
+  const openAskPanel = () => {
+    if (!askFloat) return
+    setAskPanel({ quote: askFloat.text, messages: [], sending: false })
+    setAskFloat(null)
+    window.getSelection()?.removeAllRanges()
+  }
+
+  const askQuestion = async () => {
+    if (!askPanel || askPanel.sending || !askInput.trim()) return
+    const q = askInput.trim()
+    setAskInput('')
+    setAskPanel(p => ({ ...p, messages: [...p.messages, { role: 'user', content: q }], sending: true }))
+    try {
+      const r = await sendChat({ message: `我在阅读一段内容时有个疑问。原文片段：
+
+${askPanel.quote}
+
+我的问题：${q}`, use_rag: false })
+      const reply = r.reply || '(无回复)'
+      setAskPanel(p => ({ ...p, messages: [...p.messages, { role: 'assistant', content: reply }], sending: false }))
+    } catch (e) {
+      setAskPanel(p => ({ ...p, messages: [...p.messages, { role: 'assistant', content: `追问失败：${e.message}` }], sending: false }))
+    }
+  }
+
+  const [askInput, setAskInput] = useState('')
+
   const handleKeyDown = (e) => {
     if (handlePaletteKey(e)) return
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
@@ -331,7 +393,7 @@ export default function KnowledgeBase() {
   const hasChat = messages.length > 0
 
   return (
-    <div className="kb-container kb-chat-layout">
+    <div className={`kb-container kb-chat-layout ${readingMode ? 'reading-mode' : ''}`}>
       {/* === 左侧对话历史栏 === */}
       <div className="chat-history-bar">
         <div className="chat-history-header">
@@ -378,6 +440,13 @@ export default function KnowledgeBase() {
               <span>{summarizing ? '总结中...' : '总结为笔记'}</span>
             </button>
             <button
+              className={`chat-read-btn ${readingMode ? 'active' : ''}`}
+              onClick={() => setReadingMode(r => !r)}
+              title={readingMode ? '退出全屏阅读' : '全屏阅读（隐藏侧栏）'}
+            >
+              {readingMode ? <Minimize2 size={14} strokeWidth={2} /> : <Maximize2 size={14} strokeWidth={2} />}
+            </button>
+            <button
               className={`think-toggle ${deepThinking ? 'active' : ''}`}
               onClick={toggleDeepThinking}
               title={deepThinking ? '深度思考已开启（响应较慢）' : '点击开启深度思考'}
@@ -422,15 +491,73 @@ export default function KnowledgeBase() {
             </div>
           ) : (
             messages.map((msg, i) => (
-              <MessageBubble key={msg.id ?? `idx-${i}`} msg={msg} index={i}
+              <div key={msg.id ?? `idx-${i}`} data-msg-idx={i} className="msg-row-wrap"
+                onMouseUp={(e) => handleTextSelect(e, msg, i)}>
+                <MessageBubble msg={msg} index={i}
                 onConfirmSave={confirmSave} onDismissSave={dismissSave}
                 onRetry={retry}
                 onShowDetail={openMessageDetail}
                 onDelete={() => handleDeleteMessage(msg)}
+                bookmarked={bookmarks.some(b => b.msgId === msg.id)}
+                onBookmark={() => toggleBookmark(msg, i)}
               />
+              <button
+                className={`chat-bookmark-btn ${bookmarks.some(b => b.msgId === msg.id) ? 'active' : ''}`}
+                onClick={() => toggleBookmark(msg, i)}
+                title="标记此位置（会话内有效）"
+              >
+                <Bookmark size={13} strokeWidth={2} fill={bookmarks.some(b => b.msgId === msg.id) ? 'currentColor' : 'none'} />
+              </button>
+              </div>
             ))
           )}
         </div>
+
+        {/* 一次性标记导航（右侧悬浮，会话级） */}
+        {bookmarks.length > 0 && (
+          <div className="chat-bookmark-nav">
+            {bookmarks.map((b, i) => (
+              <button key={b.msgId} onClick={() => jumpToBookmark(b.idx)} title={b.label}>
+                {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 划词追问浮动按钮 */}
+        {askFloat && (
+          <div className="chat-ask-float" style={{ left: askFloat.x, top: askFloat.y, position: 'fixed', transform: 'translateX(-50%)' }}
+            onClick={openAskPanel}>
+            <MessageCircleQuestion size={13} strokeWidth={2} /> 追问
+          </div>
+        )}
+
+        {/* 追问 sub-agent 面板 */}
+        {askPanel && (
+          <div className="chat-ask-panel">
+            <div className="ask-panel-header">
+              <span><MessageCircleQuestion size={14} strokeWidth={2} /> 追问</span>
+              <button className="pkb-icon-btn" onClick={() => setAskPanel(null)}><X size={16} strokeWidth={2} /></button>
+            </div>
+            <div className="ask-panel-quote">{askPanel.quote}</div>
+            <div className="ask-panel-messages">
+              {askPanel.messages.map((m, i) => (
+                <div key={i} className={`msg ${m.role === 'user' ? 'user' : 'assistant'}`} style={{ fontSize: 12.5 }}>
+                  <div className="msg-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
+                </div>
+              ))}
+              {askPanel.sending && <Loader2 size={16} className="spin-icon" />}
+            </div>
+            <div className="ask-panel-input">
+              <textarea rows="1" placeholder="问点什么..." value={askInput}
+                onChange={(e) => setAskInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askQuestion() } }} />
+              <button onClick={askQuestion} disabled={askPanel.sending}>
+                {askPanel.sending ? <Loader2 size={13} className="spin-icon" /> : <Send size={13} />}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 回到底部浮动按钮 */}
         {showScrollBtn && hasChat && (

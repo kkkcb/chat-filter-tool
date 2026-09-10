@@ -429,6 +429,17 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     ...CATEGORY_SUGGESTIONS,
   ])]
 
+  // 阅读态大纲：从笔记正文解析标题
+  const viewOutline = useMemo(() => {
+    if (editing || !note?.content) return []
+    return note.content.split('\n').flatMap((line) => {
+      const m = line.match(/^(#{2,4})\s+(.+)/)
+      if (!m) return []
+      const text = m[2].trim().slice(0, 24)
+      return text ? [{ level: m[1].length, text }] : []
+    })
+  }, [note, editing])
+
   // 编辑大纲：正文标题（##/###/####）→ 左侧栏点击跳转
   const outline = useMemo(() => {
     if (!editing) return []
@@ -717,7 +728,26 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
             </div>
           </div>
         ) : (
-          <div className="pkb-modal-body">
+          <div className="pkb-modal-body pkb-view-body">
+            {/* 阅读态：左侧大纲 + 右侧正文（和编辑态结构对齐） */}
+            {viewOutline.length > 0 && (
+              <aside className="pkb-outline">
+                <div className="pkb-outline-head">大纲</div>
+                {viewOutline.map((h, i) => (
+                  <button key={i} className={`pkb-outline-item lv${h.level}`} title={h.text}
+                    onClick={() => {
+                      const content = document.querySelector('.pkb-view-content')
+                      if (!content) return
+                      const heads = [...content.querySelectorAll('h1,h2,h3,h4')]
+                      const el = heads.find((x) => (x.textContent || '').trim().startsWith(h.text))
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }}>
+                    {h.text}
+                  </button>
+                ))}
+              </aside>
+            )}
+            <div className="pkb-view-main">
             <h3 className="pkb-view-title">{note?.title}</h3>
             {(note?.category || note?.tags?.length > 0) && (
               <div className="pkb-view-tags">
@@ -740,6 +770,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                 dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content) }}
               />
             )}
+            </div>
           </div>
         )}
       </div>
