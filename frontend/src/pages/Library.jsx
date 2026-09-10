@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { useMaterialStore } from '../stores/materialStore'
 import { renderMarkdown } from '../utils/markdown'
-import { getMaterials, getMaterial, deleteMaterial } from '../api/materials'
+import { getMaterials, deleteMaterial } from '../api/materials'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
 import './Library.css'
@@ -201,18 +201,12 @@ export default function Library() {
 }
 
 function MaterialCard({ material: m, isExpanded, onToggle, onDelete, onContextMenu }) {
-  const [detail, setDetail] = useState(null)
-  const [loadingDetail, setLoadingDetail] = useState(false)
   const src = SOURCE_ICONS[m.source] || SOURCE_ICONS.web
   const dateStr = m.date ? new Date(m.date).toLocaleDateString('zh-CN', { month:'short', day:'numeric' }) : ''
 
-  const handleExpand = async () => {
+  // 详情即大纲（summary 多行要点），不再拉取 md 全文
+  const handleExpand = () => {
     onToggle()
-    if (!detail && !loadingDetail) {
-      setLoadingDetail(true)
-      try { setDetail(await getMaterial(m.id)) } catch { setDetail(null) }
-      setLoadingDetail(false)
-    }
   }
 
   return (
@@ -230,7 +224,7 @@ function MaterialCard({ material: m, isExpanded, onToggle, onDelete, onContextMe
           </div>
           <ChevronRight size={16} strokeWidth={2} className={`mc-chevron ${isExpanded ? 'rotated' : ''}`} />
         </div>
-        <div className="mc-summary">{m.summary || '暂无摘要'}</div>
+        <div className="mc-summary">{(m.summary || '暂无摘要').split('\n')[0]}</div>
         <div className="mc-meta">
           <span className="mc-source" style={{ color: src.color }}>{src.label}</span>
           {m.tags?.length > 0 && (
@@ -240,16 +234,21 @@ function MaterialCard({ material: m, isExpanded, onToggle, onDelete, onContextMe
         </div>
         {isExpanded && (
           <div className="mc-detail">
-            {loadingDetail && <div className="mc-detail-loading">加载详情...</div>}
-            {!loadingDetail && detail?.content && (
-              <div className="mc-detail-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.content) }} />
-            )}
-            {!loadingDetail && !detail?.content && <div className="mc-detail-empty">暂无正文内容</div>}
+            {/* 大纲式展示：summary 按行渲染为要点列表；全文去原文链接看 */}
+            {(() => {
+              const lines = (m.summary || '').split('\n').map(s => s.trim()).filter(Boolean)
+              if (!lines.length) return <div className="mc-detail-empty">暂无大纲</div>
+              return (
+                <ul className="mc-outline">
+                  {lines.map((l, i) => <li key={i}>{l}</li>)}
+                </ul>
+              )
+            })()}
             <div className="mc-detail-actions">
               {m.url && (
                 <a href={m.url} target="_blank" rel="noopener noreferrer" className="mc-detail-link"
                   onClick={(e) => e.stopPropagation()}>
-                  查看原文 <ExternalLink size={13} strokeWidth={2} />
+                  查看原文全文 <ExternalLink size={13} strokeWidth={2} />
                 </a>
               )}
               <button className="mc-detail-delete" onClick={(e) => { e.stopPropagation(); onDelete?.() }}>
