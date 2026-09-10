@@ -452,6 +452,18 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     return () => { cancelled = true }
   }, [modal.id])
 
+  // 表单状态灌数：全文到达/切换模式时填充（编辑/查看互切也靠它）
+  useEffect(() => {
+    if (modal.mode === 'create') {
+      setTitle(''); setCategory(''); setTagsInput(''); setContent('')
+    } else if (note?.content != null) {
+      setTitle(note.title)
+      setCategory(note.category || '')
+      setTagsInput((note.tags || []).join(', '))
+      setContent(note.content)
+    }
+  }, [modal.mode, note])
+
   // ===== Tiptap 命令桥：工具栏按钮驱动所见即所得编辑器 =====
 
   const tp = () => editorRef.current?.chain().focus()
