@@ -486,6 +486,11 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const handleEditorKeyDown = (e) => {
     const ta = textareaRef.current
     if (!ta) return
+    // 结构性按键（回车续行/删除/移动光标）不算"输入停顿"——取消挂起的
+    // 自动渲染，否则回车续列表后 ~1s 页面闪切渲染态，像二次刷新
+    if (e.key === 'Enter' || e.key === 'Backspace' || e.key === 'Delete' || e.key.startsWith('Arrow')) {
+      clearTimeout(previewTimer.current)
+    }
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
       const k = e.key.toLowerCase()
       if (k === 'b') { e.preventDefault(); wrapSelection('**'); return }
@@ -516,6 +521,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
         const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
         setter.call(ta, next)
         ta.dispatchEvent(new Event('input', { bubbles: true }))
+        clearTimeout(previewTimer.current) // 续行插入会触发 onChange 调度，这里再取消一次
         requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(caret, caret) })
       }
     }
