@@ -629,17 +629,19 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           <div className="chat-node-track">
             {messages.map((msg, i) => {
               if (msg.role !== 'user' || !msg.content) return null
-              const label = (typeof msg.content === 'string' ? msg.content : '').slice(0, 16)
+              const fullText = typeof msg.content === 'string' ? msg.content : ''
+              const preview = fullText.slice(0, 120).replace(/\n/g, ' ')
               return (
                 <button
                   key={msg.id || i}
                   className={`chat-node-dot ${i === currentNodeIdx ? 'current' : ''}`}
-                  title={label}
                   onClick={() => {
                     const el = document.querySelector(`[data-msg-idx="${i}"]`)
                     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                   }}
-                />
+                >
+                  <span className="chat-node-preview">{preview}{fullText.length > 120 ? '…' : ''}</span>
+                </button>
               )
             })}
           </div>
