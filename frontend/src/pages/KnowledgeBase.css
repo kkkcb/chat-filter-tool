@@ -718,9 +718,10 @@
   background:transparent; border:none; box-shadow:none; border-radius:0;
 }
 .chat-node-dot {
-  width:8px; height:8px; border-radius:50%; border:none;
-  background:var(--border-dark); cursor:pointer; padding:0;
+  width:12px; height:12px; border-radius:50%; border:none;
+  background:#9ca3af; cursor:pointer; padding:0;
   transition:all var(--duration-fast) var(--ease);
+  box-shadow:0 0 0 2px rgba(255,255,255,.8);
 }
 .chat-node-dot:hover { background:var(--accent); transform:scale(1.6); }
 .chat-node-dot.current { background:var(--accent); transform:scale(1.4); box-shadow:0 0 0 3px var(--accent-glow); }
