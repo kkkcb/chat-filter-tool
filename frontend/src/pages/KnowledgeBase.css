@@ -712,7 +712,7 @@
 
 /* 对话节点导航：左侧竖轨 */
 .chat-node-track {
-  position:absolute; left:2px; top:50%; transform:translateY(-50%); z-index:10;
+  position:absolute; left:max(2px, calc(50% - 406px)); top:50%; transform:translateY(-50%); z-index:10;
   display:flex; flex-direction:column; gap:6px; align-items:center;
   padding:4px 2px; max-height:55vh; overflow-y:auto;
   background:transparent; border:none; box-shadow:none; border-radius:0;
@@ -793,3 +793,10 @@
   from { opacity:0; transform:translateY(-50%) translateX(-4px); }
   to { opacity:1; transform:translateY(-50%) translateX(0); }
 }
+
+/* 消息区 + 节点轨共享的居中容器 */
+.chat-msg-zone {
+  flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0;
+  max-width:820px; margin:0 auto; width:100%; position:relative;
+}
+.chat-msg-zone .chat-page-messages { max-width:none; padding:20px 24px 20px 36px; }
