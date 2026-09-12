@@ -47,6 +47,7 @@ export default function KnowledgeBase() {
   const [paletteIdx, setPaletteIdx] = useState(0)
   const [atItems, setAtItems] = useState([])
   const atSearchTimer = useRef(null)
+  const inputDebounceTimer = useRef(null) // 输入 debounce：打字时只更 DOM，停顿后同步 React state
   const [summarizing, setSummarizing] = useState(false)
   const { loadStats: loadNoteStats } = useNoteStore()
   const messagesRef = useRef(null)
@@ -308,6 +309,7 @@ export default function KnowledgeBase() {
   }
 
   const handleSend = async () => {
+    clearTimeout(inputDebounceTimer.current)
     const text = input.trim()
     if ((!text && !selectedImage) || isSending) return
 
@@ -842,7 +844,15 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
             )}
             <textarea ref={textareaRef} className="chat-input" rows="1" value={input}
               placeholder="提问 · 输入 / 命令、@ 引用笔记素材 · 粘贴链接收藏..."
-              onChange={(e) => { onInputChanged(e); resize() }}
+              onChange={(e) => {
+              // 性能：立即 resize + debounce 同步 state（避免每键全量重渲染 1185 行组件）
+              resize()
+              clearTimeout(inputDebounceTimer.current)
+              inputDebounceTimer.current = setTimeout(() => {
+                setInput(e.target.value)
+                detectPalette(e.target.value)
+              }, 120)
+            }}
               onKeyDown={handleKeyDown}
             />
             <button className="chat-send" disabled={isSending} onClick={handleSend} title="发送">
