@@ -246,11 +246,18 @@ export default function KnowledgeBase() {
     ? SLASH_COMMANDS.filter(c => c.cmd.slice(1).toLowerCase().includes(paletteQuery.toLowerCase())).length
     : atItems.length
 
-  const detectPalette = (text) => {
-    if (/^\/[^\s]*$/.test(text)) { setPalette('slash'); setPaletteIdx(0); return }
-    if (/@[^@\s]*$/.test(text)) {
-      setPalette('at'); setPaletteIdx(0)
-      const q = (text.match(/@([^@\s]*)$/) || [])[1] || ''
+  const detectPalette = useCallback((text) => {
+    const isSlash = /^\/[^\s]*$/.test(text)
+    const atMatch = text.match(/@([^@\s]*)$/)
+
+    // 只在模式实际变化时 setState（避免每键触发重渲染）
+    if (isSlash) {
+      if (palette !== 'slash') { setPalette('slash'); setPaletteIdx(0) }
+      return
+    }
+    if (atMatch) {
+      if (palette !== 'at') { setPalette('at'); setPaletteIdx(0) }
+      const q = atMatch[1] || ''
       clearTimeout(atSearchTimer.current)
       atSearchTimer.current = setTimeout(async () => {
         try {
@@ -264,8 +271,8 @@ export default function KnowledgeBase() {
       }, 200)
       return
     }
-    setPalette(null)
-  }
+    if (palette !== null) setPalette(null)
+  }, [palette])
 
   const onInputChanged = (e) => {
     setInput(e.target.value)
@@ -1071,7 +1078,7 @@ function ConvItem({ conv, index, isActive, onSelect, onRename, onDelete, onDragR
 }
 
 /* === 消息气泡（支持流式 + 思考过程 + 双击查看原始数据 + 单句删除） === */
-function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete }) {
+const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete }) {
   const isUser = msg.role === 'user'
   const [showReasoning, setShowReasoning] = useState(true)
 
@@ -1184,4 +1191,4 @@ function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onSh
       </div>
     </div>
   )
-}
+})
