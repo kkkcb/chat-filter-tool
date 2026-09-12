@@ -75,7 +75,10 @@ export default function KnowledgeBase() {
   const handleMessagesScroll = useCallback(() => {
     const el = messagesRef.current
     if (!el) return
-    setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 300)
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollBtn(distFromBottom > 300)
+    // 智能跟随：用户滚离底部 > 80px 时停止自动跟随，滚回底部恢复
+    userScrolledUp.current = distFromBottom > 80
   }, [])
 
   const scrollToBottom = (smooth = false) => {
@@ -86,7 +89,11 @@ export default function KnowledgeBase() {
       })
     }
   }
-  useEffect(() => { scrollToBottom() }, [messages])
+  // 流式输出时跟随最新消息——但用户手动滚上去后不再强行拉回
+  const userScrolledUp = useRef(false)
+  useEffect(() => {
+    if (!userScrolledUp.current) scrollToBottom()
+  }, [messages])
 
   // 加载选中的对话历史（详情不再含 raw 大字段，双击时按需拉取）
   // 节点轨当前位置：滚动时计算视口内最近的用户消息
@@ -140,6 +147,7 @@ export default function KnowledgeBase() {
   }
 
   const handleSelectConv = async (id) => {
+    userScrolledUp.current = false // 切换对话 → 恢复自动跟随
     clearMessages()
     checkConvNotes(id)
     const detail = await selectConversation(id)
@@ -361,6 +369,7 @@ export default function KnowledgeBase() {
 
     const files = attachments.length > 0 ? attachments.map(a => ({ name: a.name, url: a.url, is_text: a.is_text, text_content: a.text_content, size: a.size })) : null
     setAttachments([])
+    userScrolledUp.current = false // 用户发新消息 → 恢复自动跟随
     await sendMessage(text, img, mode, convId, refreshAfterMessage, files)
     fetchStats()
   }
