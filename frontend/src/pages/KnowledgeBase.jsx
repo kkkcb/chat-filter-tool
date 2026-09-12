@@ -547,13 +547,17 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
   return (
     <div className={`kb-container kb-chat-layout ${readingMode ? 'reading-mode' : ''}`}>
       {/* === 左侧对话历史栏 === */}
-      <div className={`chat-history-bar ${historyCollapsed ? 'collapsed' : ''}`}>
+      {historyCollapsed && (
+          <button className="ch-expand-float" onClick={() => setHistoryCollapsed(false)}
+            title="展开对话历史">›</button>
+        )}
+        <div className={`chat-history-bar ${historyCollapsed ? 'collapsed' : ''}`}>
         <div className="chat-history-header">
           <span className="ch-title"><History size={15} strokeWidth={2} /> {historyCollapsed ? '' : '对话历史'}</span>
-            <button className="ch-collapse-btn" onClick={() => setHistoryCollapsed(c => !c)}
-              title={historyCollapsed ? '展开对话历史' : '收起对话历史'}>
-              {historyCollapsed ? '›' : '‹'}
-            </button>
+            {!historyCollapsed && (
+              <button className="ch-collapse-btn" onClick={() => setHistoryCollapsed(true)}
+                title="收起对话历史">‹</button>
+            )}
           <button className="ch-new-btn" onClick={handleNewConv} title="新对话">
             <Plus size={16} strokeWidth={2.2} />
           </button>

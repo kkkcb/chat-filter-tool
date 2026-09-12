@@ -5,7 +5,7 @@
 
 .chat-history-bar {
   width:240px; flex-shrink:0; display:flex; flex-direction:column;
-  background:var(--bg-card); border-right:1px solid var(--border);
+  background:var(--bg-app);
 }
 .chat-history-header {
   display:flex; align-items:center; justify-content:space-between;
@@ -693,15 +693,11 @@
 
 /* 对话历史侧栏收起 */
 .chat-history-bar { transition:width var(--duration) var(--ease), min-width var(--duration) var(--ease); overflow:hidden; }
-.chat-history-bar.collapsed { width:32px !important; min-width:32px !important; }
+.chat-history-bar.collapsed { width:0 !important; min-width:0 !important; border:none; }
 .chat-history-bar.collapsed .ch-new-btn,
 .chat-history-bar.collapsed .conv-list,
-.chat-history-bar.collapsed .ch-title svg { display:none; }
-.chat-history-bar.collapsed .ch-title { justify-content:center; padding:0; }
-.chat-history-bar.collapsed .conv-item { background:none !important; border-color:transparent !important; }
-.chat-history-bar.collapsed .conv-item.active { background:none !important; }
-.chat-history-bar.collapsed .conv-item * { color:transparent !important; }
-.chat-history-bar.collapsed .conv-item { cursor:default; pointer-events:none; height:0; overflow:hidden; margin:0; padding:0; border:none; }
+.chat-history-bar.collapsed .ch-title,
+.chat-history-bar.collapsed .chat-history-header { display:none !important; }
 .ch-collapse-btn {
   width:22px; height:22px; border:none; border-radius:4px;
   background:none; color:var(--text-light); cursor:pointer;
@@ -803,3 +799,14 @@
 .chat-msg-zone .chat-page-messages { max-width:none; padding:20px 24px 20px 36px; }
 /* cache-bust: f7c9104+1 */
 .cache-bust-v2 { outline: 0 solid transparent; }
+
+/* 折叠后的浮动展开按钮 */
+.ch-expand-float {
+  position:fixed; left:8px; top:50%; transform:translateY(-50%); z-index:60;
+  width:24px; height:48px; border:1px solid var(--border); border-radius:0 8px 8px 0;
+  background:var(--bg-card); color:var(--text-muted); cursor:pointer;
+  font-size:14px; display:flex; align-items:center; justify-content:center;
+  box-shadow:2px 0 8px rgba(0,0,0,.06);
+  transition:all var(--duration-fast) var(--ease);
+}
+.ch-expand-float:hover { color:var(--accent); border-color:var(--accent); background:var(--accent-light); }
