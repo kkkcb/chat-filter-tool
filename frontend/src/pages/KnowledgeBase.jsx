@@ -274,6 +274,7 @@ export default function KnowledgeBase() {
 
   const pickSlash = (item) => {
     setPalette(null); setInput('')
+    if (textareaRef.current) textareaRef.current.value = ''
     const c = item.cmd
     if (c === '/总结为笔记') { handleSendNote() }
     else if (c === '/深度思考') { toggleDeepThinking(); toast(deepThinking ? '已关闭深度思考' : '已开启深度思考', 'info') }
@@ -285,6 +286,7 @@ export default function KnowledgeBase() {
     // 把输入尾部 @xx 替换为完整 @标题 （后端解析注入正文）
     const next = input.replace(/@[^@\s]*$/, item.label + ' ')
     setInput(next)
+    if (textareaRef.current) textareaRef.current.value = next
     setPalette(null)
     textareaRef.current?.focus()
   }
@@ -310,7 +312,9 @@ export default function KnowledgeBase() {
 
   const handleSend = async () => {
     clearTimeout(inputDebounceTimer.current)
-    const text = input.trim()
+    const text = (textareaRef.current?.value || '').trim()
+    // 同步到 state（palette 等依赖 input 的逻辑）
+    setInput(text)
     if ((!text && !selectedImage) || isSending) return
 
     // === 对话式指令拦截：保存类的话直接执行，不再发给 AI 空转 ===
@@ -369,6 +373,7 @@ export default function KnowledgeBase() {
     const mode = selectedMode
     const convId = activeId
     setInput('')
+    if (textareaRef.current) textareaRef.current.value = ''
     resize()
     if (selectedImage) clear()
 
@@ -842,10 +847,9 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                 />
               </div>
             )}
-            <textarea ref={textareaRef} className="chat-input" rows="1" value={input}
+            <textarea ref={textareaRef} className="chat-input" rows="1
               placeholder="提问 · 输入 / 命令、@ 引用笔记素材 · 粘贴链接收藏..."
               onChange={(e) => {
-              // 性能：立即 resize + debounce 同步 state（避免每键全量重渲染 1185 行组件）
               resize()
               clearTimeout(inputDebounceTimer.current)
               inputDebounceTimer.current = setTimeout(() => {
