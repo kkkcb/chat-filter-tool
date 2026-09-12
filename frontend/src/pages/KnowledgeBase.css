@@ -811,22 +811,20 @@
 }
 .ch-expand-float:hover { color:var(--accent); border-color:var(--accent); background:var(--accent-light); }
 
-/* 上下文使用量统计（输入框下方） */
-.chat-ctx-stats {
-  display:flex; align-items:center; gap:8px;
-  padding:5px 4px 0; max-width:820px; margin:0 auto; width:100%;
-  font-size:11px; color:var(--text-light); font-family:var(--font-mono);
+/* 上下文圆环指示器（输入框右下方，hover 出详情） */
+.ctx-ring-wrap {
+  position:relative; display:inline-flex; align-items:center;
+  padding:4px 4px 0; max-width:820px; margin:0 auto; width:100%;
+  justify-content:flex-end;
 }
-.chat-ctx-stats .ctx-bar {
-  flex:1; height:3px; border-radius:2px;
-  background:rgba(0,0,0,.06); overflow:hidden;
+.ctx-ring { color:var(--text-light); cursor:default; }
+.ctx-ring-fill { transition:stroke-dashoffset .4s ease; }
+.ctx-ring-wrap.warn .ctx-ring { color:#f59e0b; }
+.ctx-ring-tip {
+  display:none; position:absolute; bottom:calc(100% + 4px); right:0;
+  padding:5px 10px; background:var(--bg-card); border:1px solid var(--border);
+  border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.1);
+  font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);
+  white-space:nowrap; z-index:50; pointer-events:none;
 }
-.chat-ctx-stats .ctx-fill {
-  height:100%; border-radius:2px; background:var(--text-light);
-  transition:width .3s ease, background .3s;
-}
-.chat-ctx-stats .ctx-text { white-space:nowrap; letter-spacing:-.2px; }
-.chat-ctx-stats .ctx-pct { opacity:.6; }
-.chat-ctx-stats .ctx-msgs { opacity:.5; }
-.chat-ctx-stats.warn .ctx-fill { background:#f59e0b; }
-.chat-ctx-stats.warn .ctx-text { color:#b45309; }
+.ctx-ring-wrap:hover .ctx-ring-tip { display:block; }

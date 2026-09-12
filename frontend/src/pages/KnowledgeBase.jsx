@@ -855,18 +855,31 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
             )}
           </div>
         </div>
-          {ctxStats && ctxStats.message_count > 0 && (
-            <div className={`chat-ctx-stats ${ctxStats.usage_percent > 80 ? 'warn' : ''}`}>
-              <div className="ctx-bar">
-                <div className="ctx-fill" style={{ width: Math.min(100, ctxStats.usage_percent) + '%' }} />
+          {ctxStats && ctxStats.message_count > 0 && (() => {
+            const pct = Math.min(100, ctxStats.usage_percent)
+            const warn = ctxStats.usage_percent > 80
+            const R = 8; const C = 2 * Math.PI * R
+            const tokens = ctxStats.estimated_tokens > 1000
+              ? (ctxStats.estimated_tokens / 1000).toFixed(1) + 'k'
+              : String(ctxStats.estimated_tokens)
+            return (
+              <div className={`ctx-ring-wrap ${warn ? 'warn' : ''}`}>
+                <svg width="20" height="20" viewBox="0 0 20 20" className="ctx-ring">
+                  <circle cx="10" cy="10" r={R} fill="none" stroke="rgba(0,0,0,.08)" strokeWidth="2.5" />
+                  <circle cx="10" cy="10" r={R} fill="none"
+                    stroke={warn ? '#f59e0b' : 'currentColor'}
+                    strokeWidth="2.5" strokeLinecap="round"
+                    strokeDasharray={C}
+                    strokeDashoffset={C - (C * pct) / 100}
+                    transform="rotate(-90 10 10)"
+                    className="ctx-ring-fill" />
+                </svg>
+                <span className="ctx-ring-tip">
+                  {tokens} / 128k tokens ({ctxStats.usage_percent}%) · {ctxStats.message_count} 条
+                </span>
               </div>
-              <span className="ctx-text">
-                {ctxStats.estimated_tokens > 1000 ? (ctxStats.estimated_tokens / 1000).toFixed(1) + 'k' : ctxStats.estimated_tokens} / 128k tokens
-                <span className="ctx-pct">({ctxStats.usage_percent}%)</span>
-                <span className="ctx-msgs">· {ctxStats.message_count} 条</span>
-              </span>
-            </div>
-          )}
+            )
+          })()}
       </div>
 
       {/* === 原始请求/返回查看弹窗 === */}
