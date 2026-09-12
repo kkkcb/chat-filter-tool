@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
