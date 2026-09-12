@@ -22,6 +22,7 @@ import InputPalette, { SLASH_COMMANDS, paletteKeydown } from '../components/Inpu
 import '../components/InputPalette.css'
 import { deleteMessage } from '../api/conversations'
 import './KnowledgeBase.css'
+import './KnowledgeBaseExtra.css'
 
 const VISION_MODES = [
   { key:'describe', label:'描述图片', Icon: FileText },
