@@ -12,7 +12,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { getMessage } from '../api/conversations'
 import { useNoteStore } from '../stores/noteStore'
 import { summarizeConversation, getNotes } from '../api/notes'
-import { getConversationNotes } from '../api/conversations'
+import { getConversationNotes, getConversationContext } from '../api/conversations'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown, renderUserText } from '../utils/markdown'
@@ -124,11 +124,14 @@ export default function KnowledgeBase() {
   }, [updateCurrentNode])
 
   const checkConvNotes = useCallback(async (id) => {
-    if (!id) { setConvNotesCount(0); return }
+    if (!id) { setConvNotesCount(0); setCtxStats(null); return }
     try {
       const notes = await getConversationNotes(id)
       setConvNotesCount(notes.length)
     } catch { setConvNotesCount(0) }
+    try {
+      setCtxStats(await getConversationContext(id))
+    } catch { setCtxStats(null) }
   }, [])
 
   const handleShowConvNotes = async () => {
@@ -423,6 +426,7 @@ export default function KnowledgeBase() {
   const [currentNodeIdx, setCurrentNodeIdx] = useState(-1) // 当前视口的用户消息节点 [{name, url, is_text, text_content, size}]
   const [convNotes, setConvNotes] = useState(null) // 弹窗：对话沉淀的笔记列表
   const [convNotesCount, setConvNotesCount] = useState(0)
+  const [ctxStats, setCtxStats] = useState(null) // {estimated_tokens, usage_percent, message_count}
 
   const openAskPanel = () => {
     if (!askFloat) return
@@ -851,6 +855,18 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
             )}
           </div>
         </div>
+          {ctxStats && ctxStats.message_count > 0 && (
+            <div className={`chat-ctx-stats ${ctxStats.usage_percent > 80 ? 'warn' : ''}`}>
+              <div className="ctx-bar">
+                <div className="ctx-fill" style={{ width: Math.min(100, ctxStats.usage_percent) + '%' }} />
+              </div>
+              <span className="ctx-text">
+                {ctxStats.estimated_tokens > 1000 ? (ctxStats.estimated_tokens / 1000).toFixed(1) + 'k' : ctxStats.estimated_tokens} / 128k tokens
+                <span className="ctx-pct">({ctxStats.usage_percent}%)</span>
+                <span className="ctx-msgs">· {ctxStats.message_count} 条</span>
+              </span>
+            </div>
+          )}
       </div>
 
       {/* === 原始请求/返回查看弹窗 === */}

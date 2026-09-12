@@ -148,6 +148,30 @@ async def update_conversation(conv_id: int, req: UpdateConversationRequest, db: 
     )
 
 
+@router.get("/conversations/{conv_id}/context")
+async def get_conversation_context(conv_id: int, db: Session = Depends(get_db)):
+    """对话上下文使用量估算（token 计数 + 历史条数）
+    
+    token 估算：中文约 1.5 字/token，英文约 4 字符/token，取混合约 2.2 字符/token。
+    GLM 系列模型上下文窗口约 128k token。
+    """
+    msgs = (
+        db.query(Message.content, Message.role)
+        .filter(Message.conversation_id == conv_id)
+        .all()
+    )
+    total_chars = sum(len(m[0] or "") for m in msgs)
+    # 混合估算：中文字符约占 60%（1.5字/token），英文约 40%（4字符/token）
+    est_tokens = int(total_chars / 2.2)
+    return {
+        "message_count": len(msgs),
+        "total_chars": total_chars,
+        "estimated_tokens": est_tokens,
+        "context_window": 128000,
+        "usage_percent": round(est_tokens / 128000 * 100, 1),
+    }
+
+
 @router.get("/conversations/{conv_id}/notes")
 async def get_conversation_notes(conv_id: int, db: Session = Depends(get_db)):
     """对话沉淀的所有笔记（对话→笔记反向跳转；一对多时前端弹选择）"""

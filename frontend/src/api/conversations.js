@@ -34,3 +34,7 @@ export const updateMessageContent = (id, content) =>
 /** 对话沉淀的所有笔记（对话→笔记反向跳转） */
 export const getConversationNotes = (convId) =>
   request(`/conversations/${convId}/notes`)
+
+/** 对话上下文使用量估算 */
+export const getConversationContext = (convId) =>
+  request(`/conversations/${convId}/context`)
