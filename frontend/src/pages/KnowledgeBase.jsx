@@ -13,6 +13,7 @@ import { getMessage } from '../api/conversations'
 import { useNoteStore } from '../stores/noteStore'
 import { summarizeConversation, getNotes } from '../api/notes'
 import { getConversationNotes, getConversationContext } from '../api/conversations'
+import ChatInputBar from '../components/ChatInputBar'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown, renderUserText } from '../utils/markdown'
@@ -47,7 +48,7 @@ export default function KnowledgeBase() {
   const [paletteIdx, setPaletteIdx] = useState(0)
   const [atItems, setAtItems] = useState([])
   const atSearchTimer = useRef(null)
-  const inputDebounceTimer = useRef(null) // 输入 debounce：打字时只更 DOM，停顿后同步 React state
+  const inputBarRef = useRef(null) // 输入 debounce：打字时只更 DOM，停顿后同步 React state
   const [summarizing, setSummarizing] = useState(false)
   const { loadStats: loadNoteStats } = useNoteStore()
   const messagesRef = useRef(null)
@@ -315,9 +316,8 @@ export default function KnowledgeBase() {
     return false
   }
 
-  const handleSend = async () => {
-    clearTimeout(inputDebounceTimer.current)
-    const text = input.trim()
+  const handleSend = async (textArg) => {
+    const text = (textArg || '').trim()
     if ((!text && !selectedImage) || isSending) return
 
     // === 对话式指令拦截：保存类的话直接执行，不再发给 AI 空转 ===
@@ -787,79 +787,7 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           </button>
         )}
 
-        <div className="chat-page-input">
-          {selectedImage && (
-            <div className="image-preview-bar">
-              <img src={selectedImage} alt="preview" />
-              <div className="ip-info">
-                <strong>已附加图片</strong>
-                <span>选择分析模式或输入问题</span>
-              </div>
-              <span className="ip-remove" onClick={clear}><X size={16} strokeWidth={2} /></span>
-            </div>
-          )}
-          {selectedImage && (
-            <div className="vision-presets">
-              {VISION_MODES.map(({ key, label, Icon }) => (
-                <div key={key} className={`vision-preset ${selectedMode === key ? 'active' : ''}`}
-                  onClick={() => setMode(key)}>
-                  <Icon size={13} strokeWidth={2} /> {label}
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="chat-input-wrap" onDragOver={handleDragOver} onDrop={handleDrop}>
-            {attachments.length > 0 && (
-              <div className="chat-attachments">
-                {attachments.map((a, i) => (
-                  <span key={i} className="chat-attachment">
-                    <span className="att-name">{a.name}</span>
-                    <button className="att-remove" onClick={() => removeAttachment(i)}><X size={11} /></button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <button className="chat-clip-btn" onClick={() => fileInputRef.current?.click()} title="上传图片">
-              <ImagePlus size={18} strokeWidth={2} />
-            </button>
-            <label className="chat-clip-btn" title="上传文件（AI 分析内容）">
-              <input type="file" multiple onChange={handleFileInput} style={{ display: 'none' }} />
-              <Paperclip size={18} strokeWidth={2} />
-            </label>
-            <input type="file" ref={fileInputRef} accept="image/*" style={{ display: 'none' }}
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) handleImageFile(file)
-                e.target.value = ''
-              }}
-            />
-            {palette && (
-              <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 6 }}>
-                <InputPalette
-                  mode={palette}
-                  query={paletteQuery}
-                  items={atItems.map(a => ({ label: a.label, sub: a.sub }))}
-                  index={paletteIdx}
-                  onPick={palette === 'slash' ? pickSlash : pickAt}
-                  onClose={() => setPalette(null)}
-                />
-              </div>
-            )}
-            <textarea ref={textareaRef} className="chat-input" rows="1" value={input}
-              placeholder="提问 · 输入 / 命令、@ 引用笔记素材 · 粘贴链接收藏..."
-              onChange={(e) => { setInput(e.target.value); detectPalette(e.target.value); resize() }}
-              onKeyDown={handleKeyDown}
-            />
-            <button className="chat-send" disabled={isSending} onClick={handleSend} title="发送">
-              {isSending ? <Loader2 size={16} strokeWidth={2.2} className="spin-icon" /> : <Send size={16} strokeWidth={2.2} />}
-            </button>
-            {isSending && (
-              <button className="chat-abort" onClick={abort} title="中止">
-                <Square size={16} strokeWidth={2.2} />
-              </button>
-            )}
-          </div>
-        </div>
+        <ChatInputBar ref={inputBarRef} onSend={handleSend} isSending={isSending} onFileUpload={handleFileUpload} onImageSelect={handleImageFile} />
           {ctxStats && ctxStats.message_count > 0 && (() => {
             const pct = Math.min(100, ctxStats.usage_percent)
             const warn = ctxStats.usage_percent > 80
