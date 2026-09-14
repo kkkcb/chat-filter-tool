@@ -34,6 +34,38 @@ export default function KbApiModal({ onClose }) {
 
   const curlExample = `curl "${apiUrl}/search?q=部署"`
 
+  const aiPrompt = `# 踩坑实录自动记录系统
+
+你在帮用户写代码时，如果遇到非平凡的问题并解决了，请自动把经验记录到用户的知识库。
+
+## 何时记录
+- 环境差异坑（Windows/Linux/路径/编码）
+- 框架隐蔽行为（React/SQLAlchemy/FastAPI 等）
+- 耗时超过 3 分钟的排查
+- 官方文档没写的 workaround
+
+## 记录 API
+POST ${apiUrl}/notes
+Headers: Content-Type: application/json${info?.auth?.required ? ` | X-Access-Token: <令牌见下>` : ''}
+
+Body:
+{
+  "title": "【项目名】一句话标题",
+  "content": "## 现象\\n原始报错\\n\\n## 根因\\n为什么\\n\\n## 解决\\n具体命令/代码",
+  "tags": ["项目名", "技术关键词1", "技术关键词2"],
+  "category": "踩坑实录"
+}
+
+## 查询 API
+搜索：GET ${apiUrl}/notes?category=踩坑实录&q=关键词
+全文：GET ${apiUrl}/kb/search?q=关键词${info?.auth?.required ? '\n（需加 X-Access-Token 头）' : ''}
+
+## 格式要求
+- title：【项目名】一句话
+- content 三节：现象/根因/解决
+- tags 首位=项目名，后跟技术关键词
+- 中文 JSON 写临时文件再发（--data-binary @文件）`
+
   const copy = (text, key) => {
     navigator.clipboard.writeText(text)
       .then(() => {
@@ -114,6 +146,19 @@ export default function KbApiModal({ onClose }) {
               <code>{curlExample}</code>
               <button className="kb-api-copy" onClick={() => copy(curlExample, 'curl')}>
                 {copied === 'curl' ? <Check size={12} /> : <Copy size={12} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="kb-api-section">
+            <h4>AI 接入 Prompt（复制发给任何 AI）</h4>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.5 }}>
+              粘贴到 Claude / ChatGPT / Cursor 等任何 AI，它就能自动把踩坑经验写入你的知识库、遇到问题时检索过往经验。
+            </p>
+            <div className="kb-api-curl" style={{ maxHeight: 280, overflow: 'auto', alignItems: 'flex-start' }}>
+              <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'var(--font)', lineHeight: 1.6, flex: 1 }}>{aiPrompt}</pre>
+              <button className="kb-api-copy" style={{ marginTop: 6, flexShrink: 0 }} onClick={() => copy(aiPrompt, 'ai-prompt')}>
+                {copied === 'ai-prompt' ? <Check size={12} /> : <Copy size={12} />}
               </button>
             </div>
           </div>
