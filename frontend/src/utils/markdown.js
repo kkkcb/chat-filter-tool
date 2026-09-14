@@ -160,6 +160,35 @@ function convertCustomTags(text) {
     .join('\n')
 }
 
+/**
+ * 提取大纲 — 与 renderMarkdown 的结构规则同源：
+ * markdown #{2,4} 标题 + 独立成行的 XML 分节标签（渲染时转二级标题）。
+ * 大纲侧栏必须用这个而不是自己正则 raw 文本，否则 XML 分节的笔记
+ * （如提示词）大纲会漏掉主要章节。跳 fences 内的标题样文本。
+ */
+export function extractOutline(text, { maxLen = 24 } = {}) {
+  if (!text) return []
+  const out = []
+  let inFence = false
+  for (const line of text.split('\n')) {
+    if (/^\s*```/.test(line)) { inFence = !inFence; continue }
+    if (inFence) continue
+    const t = line.trim()
+    const open = t.match(/^<([^<>\/]+)>$/)
+    if (open) {
+      const name = open[1].trim().slice(0, maxLen)
+      if (name) out.push({ level: 2, text: name, raw: t, isTag: true })
+      continue
+    }
+    const m = t.match(/^(#{2,4})\s+(.+)/)
+    if (m) {
+      const h = m[2].trim().slice(0, maxLen)
+      if (h) out.push({ level: m[1].length, text: h, raw: h })
+    }
+  }
+  return out
+}
+
 export function renderMarkdown(text) {
   if (!text) return ''
 

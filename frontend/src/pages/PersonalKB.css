@@ -422,6 +422,10 @@
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   border-left:2px solid transparent;
   transition:all var(--duration-fast) var(--ease);
+  /* 关键：条目多于容器高度时禁止 flex 压缩，否则每个按钮被压扁、
+     文字行框互相叠压（34 条时实测高度 13px < 行高 17px），交给
+     容器 overflow-y:auto 滚动 */
+  flex-shrink:0;
 }
 .pkb-outline-item:hover { color:var(--text); background:var(--bg-hover); }
 .pkb-outline-item.lv2 { font-weight:600; color:var(--text-secondary); }

@@ -7,7 +7,7 @@ import { useNoteStore } from '../stores/noteStore'
 import { getNote, uploadNoteImage, polishNote, getNoteSource } from '../api/notes'
 import { diffTexts } from '../utils/diff'
 import { analyzeVision } from '../api/vision'
-import { renderMarkdown } from '../utils/markdown'
+import { renderMarkdown, extractOutline } from '../utils/markdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
 import KbApiModal from '../components/KbApiModal'
@@ -439,26 +439,16 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     ...CATEGORY_SUGGESTIONS,
   ])]
 
-  // 阅读态大纲：从笔记正文解析标题
+  // 阅读态大纲：与渲染同源（markdown 标题 + XML 分节标签→二级标题）
   const viewOutline = useMemo(() => {
     if (editing || !note?.content) return []
-    return note.content.split('\n').flatMap((line) => {
-      const m = line.match(/^(#{2,4})\s+(.+)/)
-      if (!m) return []
-      const text = m[2].trim().slice(0, 24)
-      return text ? [{ level: m[1].length, text }] : []
-    })
+    return extractOutline(note.content)
   }, [note, editing])
 
-  // 编辑大纲：正文标题（##/###/####）→ 左侧栏点击跳转
+  // 编辑大纲：同源提取，raw 行文本用于编辑器内定位（XML 标签在 Tiptap 里是普通段落）
   const outline = useMemo(() => {
     if (!editing) return []
-    return content.split('\n').flatMap((line, idx) => {
-      const m = line.match(/^(#{2,4})\s+(.+)/)
-      if (!m) return []
-      const text = m[2].trim().slice(0, 24)
-      return text ? [{ level: m[1].length, text, line: idx }] : []
-    })
+    return extractOutline(content)
   }, [content, editing])
 
   // 打开已有笔记 → 拉取完整正文（列表接口只含摘要）
@@ -490,11 +480,17 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   const tp = () => editorRef.current?.chain().focus()
 
   const jumpToOutline = (h) => {
-    // 编辑器内按文本找 heading 节点滚动定位
+    // 编辑器内定位：标题节点按文本匹配；XML 分节标签在 Tiptap 里是普通段落
+    // 且可能与相邻行合并，须按「包含 <标签>」匹配
     const dom = editorRef.current?.view?.dom
     if (!dom) return
-    const heads = [...dom.querySelectorAll('h1,h2,h3,h4')]
-    const el = heads.find((x) => (x.textContent || '').trim().startsWith(h.text))
+    const blocks = [...dom.querySelectorAll('h1,h2,h3,h4,p')]
+    const el = h.isTag
+      ? blocks.find((x) => (x.textContent || '').includes(h.raw))
+      : blocks.find((x) => {
+          const t = (x.textContent || '').trim()
+          return t === h.raw || t.startsWith(h.text)
+        })
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       editorRef.current?.commands.focus()
