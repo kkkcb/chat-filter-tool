@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plug, X, Copy, Check, Loader2 } from 'lucide-react'
+import { Plug, X, Copy, Check, Loader2, TerminalSquare } from 'lucide-react'
 import { toast } from './Toast'
-import { request } from '../api/client'
+import { request, getAccessToken } from '../api/client'
 
 /**
  * 个人知识库对外接口说明弹窗 — 展示外部 AI 读取笔记的 HTTP 接口与示例。
@@ -11,8 +11,10 @@ export default function KbApiModal({ onClose }) {
   const [info, setInfo] = useState(null)
   const [copied, setCopied] = useState('')
 
-  // 开发模式（5173）下对外地址是后端 8000；生产同源
-  const base = location.port === '5173' ? 'http://127.0.0.1:8000' : location.origin
+  // 开发模式（5173）下对外地址是后端 8000；生产同源（Pages 部署时用 VITE_API_BASE）
+  const base = location.port === '5173'
+    ? 'http://127.0.0.1:8000'
+    : (import.meta.env.VITE_API_BASE || location.origin)
   const apiUrl = `${base}/api/kb`
 
   useEffect(() => {
@@ -33,6 +35,10 @@ export default function KbApiModal({ onClose }) {
   ]
 
   const curlExample = `curl "${apiUrl}/search?q=部署"`
+
+  // 一键安装 skill：装到 ~/.agents/skills/，地址和令牌已预配置进 SKILL.md
+  const token = getAccessToken()
+  const installCmd = `curl -s "${base}/api/kb/install-skill${token ? `?access_token=${token}` : ''}" | bash`
 
   const aiPrompt = `# 踩坑实录自动记录系统
 
@@ -122,6 +128,20 @@ Body:
               </span>
             </div>
           )}
+
+          <div className="kb-api-section">
+            <h4><TerminalSquare size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />一键安装 Skill（给别人用这个）</h4>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.5 }}>
+              把这行命令发给任何装了 ZCode 的人，对方终端粘贴回车即装好 coding-pitfall-log skill ——
+              后端地址和令牌已预配置，重开会话后说「连一下踩坑实录」即可验证。
+            </p>
+            <div className="kb-api-curl">
+              <code>{installCmd}</code>
+              <button className="kb-api-copy" onClick={() => copy(installCmd, 'install')}>
+                {copied === 'install' ? <Check size={12} /> : <Copy size={12} />}
+              </button>
+            </div>
+          </div>
 
           <div className="kb-api-section">
             <h4>端点清单</h4>

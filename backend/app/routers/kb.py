@@ -153,3 +153,80 @@ async def kb_export(
         "count": len(notes),
         "content": "\n".join(lines),
     }
+
+
+@router.get("/kb/install-skill")
+async def install_skill(request: Request):
+    """一键安装 coding-pitfall-log skill——返回 bash 脚本，curl | bash 即装。
+
+    后端地址从请求自身的 Host 推导（在哪台服务器上 curl 就写哪台），
+    令牌取 APP_ACCESS_TOKEN，装完写入 ~/.agents/skills/，ZCode 重开会话即可发现。
+    """
+    from fastapi.responses import PlainTextResponse
+
+    token = settings.app_access_token
+    host = (request.headers.get("host") or "127.0.0.1:8000").lower()
+    if host.split(":")[0] in {"localhost", "127.0.0.1", "[::1]"}:
+        base = "http://127.0.0.1:8000"
+    else:
+        proto = (request.headers.get("x-forwarded-proto") or "http").lower()
+        base = f"{proto}://{host}"
+
+    auth_line = f"X-Access-Token: {token}" if token else "（本机免鉴权，无需令牌）"
+
+    skill = f"""---
+name: coding-pitfall-log
+description: coding 踩坑实录——连接 ICE 后端知识库，按项目读取与沉淀开发踩坑经验。当用户说"记一下这个坑"、"踩坑了"、"记录到踩坑实录"，或一个非平凡问题刚被排查解决值得沉淀时写入；用户问"之前是不是踩过 xx 坑"、"查下踩坑实录"时检索。
+---
+
+# coding 踩坑实录
+
+开发踩坑的记录与检索，跨项目沉淀到 ICE 知识库。
+
+## 后端（已预配置，直接用）
+
+- 服务器: {base}
+- 鉴权: 所有请求加请求头 `{auth_line}`
+- 探活: `curl -sf {base}/api/health`，不通则提示用户先启动后端
+
+## 检索（会话开始 & 用户提问时）
+
+```
+curl -s -H "X-Access-Token: {token}" -G "{base}/api/kb/search" --data-urlencode "q=关键词"
+curl -s -H "X-Access-Token: {token}" -G "{base}/api/notes" --data-urlencode "category=踩坑实录" --data-urlencode "q=关键词"
+```
+
+## 记录（排查解决后写入）
+
+POST {base}/api/notes，Body（JSON）：
+
+- title: 【项目名】一句话概括
+- content: `## 现象`（报错/表现）`## 根因`（为什么，查了什么资料）`## 解决`（怎么修的）
+- tags: ["项目名", "技术关键词"]
+- category: "踩坑实录"
+
+中文 JSON 务必写临时文件再 `--data-binary @note.json` 发送（命令行直传会乱码）。
+
+## 值得记的标准
+
+环境差异、框架隐蔽行为、排查超 3 分钟、文档没写的 workaround。
+语法错误、显而易见的问题不值得记。
+"""
+
+    install_url = f"{base}/api/kb/install-skill" + (f"?access_token={token}" if token else "")
+    script = f"""#!/usr/bin/env bash
+# coding-pitfall-log skill 一键安装
+# 用法: curl -s "{install_url}" | bash
+set -euo pipefail
+
+SKILL_DIR="$HOME/.agents/skills/coding-pitfall-log"
+mkdir -p "$SKILL_DIR"
+cat > "$SKILL_DIR/SKILL.md" << 'SKILLEOF'
+{skill}SKILLEOF
+
+echo "OK  skill 已安装: $SKILL_DIR"
+echo "    后端: {base}"
+echo "    重开 ZCode 会话后生效，说『连一下踩坑实录』即可验证"
+"""
+
+    return PlainTextResponse(script, media_type="text/plain; charset=utf-8")
