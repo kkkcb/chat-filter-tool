@@ -81,6 +81,16 @@ export default function PersonalKB() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  // 接收对话页的「跳到笔记」事件
+  useEffect(() => {
+    const handler = (e) => {
+      const { id } = e.detail
+      if (id) setModal({ mode: 'view', id })
+    }
+    window.addEventListener('ice:goto-note', handler)
+    return () => window.removeEventListener('ice:goto-note', handler)
+  }, [])
+
   const handleSearch = (e) => {
     setQuery(e.target.value)
     clearTimeout(searchTimer.current)
