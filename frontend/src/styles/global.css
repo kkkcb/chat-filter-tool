@@ -151,3 +151,16 @@ pre.hljs code { background:none; padding:0; font-family:var(--font-mono); font-s
 .hljs-comment, .hljs-quote { color:#6e7781; font-style:italic; }
 .hljs-title, .hljs-function, .hljs-name { color:#8250df; }
 .hljs-built_in, .hljs-type { color:#953800; }
+
+/* 代码块复制按钮（markdown.js 内嵌，utils/clipboard.js 全局委托处理点击） */
+.code-block { position:relative; }
+.code-block pre.hljs { margin:0; }
+.code-copy-btn {
+  position:absolute; top:6px; right:6px; z-index:2;
+  font-size:11px; font-family:var(--font); padding:2px 9px; border-radius:6px;
+  border:1px solid var(--border); background:var(--bg-card); color:var(--text-muted);
+  cursor:pointer; opacity:0; transition:opacity var(--duration-fast) var(--ease);
+}
+.code-block:hover .code-copy-btn { opacity:.9; }
+.code-copy-btn:hover { color:var(--text); border-color:var(--text-light); }
+.code-copy-btn.copied { color:var(--success); border-color:var(--success); opacity:1; }

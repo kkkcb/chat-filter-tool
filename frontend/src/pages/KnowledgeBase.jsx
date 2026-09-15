@@ -17,6 +17,7 @@ import ChatInputBar from '../components/ChatInputBar'
 import { useImagePaste } from '../hooks/useImagePaste'
 import { useAutoResize } from '../hooks/useAutoResize'
 import { renderMarkdown, renderUserText } from '../utils/markdown'
+import { copyText } from '../utils/clipboard'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
 import InputPalette, { SLASH_COMMANDS, paletteKeydown } from '../components/InputPalette'
@@ -1017,6 +1018,7 @@ function ConvItem({ conv, index, isActive, onSelect, onRename, onDelete, onDragR
 const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete }) {
   const isUser = msg.role === 'user'
   const [showReasoning, setShowReasoning] = useState(true)
+  const [bubbleCopied, setBubbleCopied] = useState(false)
 
   if (msg.typing) {
     return (
@@ -1059,6 +1061,22 @@ const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, o
               onClick={onDelete}
             >
               <Trash2 size={11} strokeWidth={2} />
+            </button>
+          )}
+          {/* 复制正文（不含思考过程）；删除按钮带 margin-left:auto 负责右推 */}
+          {msg.content && !msg.streaming && !msg.typing && (
+            <button
+              className={`msg-copy-btn ${bubbleCopied ? 'copied' : ''}`}
+              title={isUser ? '复制这条消息' : '复制回复正文（不含思考过程）'}
+              onClick={() => {
+                copyText(msg.content).then((ok) => {
+                  if (!ok) return toast('复制失败', 'error')
+                  setBubbleCopied(true)
+                  setTimeout(() => setBubbleCopied(false), 1500)
+                })
+              }}
+            >
+              {bubbleCopied ? <Check size={11} strokeWidth={2.2} /> : <Copy size={11} strokeWidth={2} />}
             </button>
           )}
         </div>

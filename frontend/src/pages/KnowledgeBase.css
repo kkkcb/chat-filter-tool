@@ -89,6 +89,17 @@
 }
 .msg-delete-btn:hover { opacity:1; background:rgba(239,68,68,.1); color:var(--danger); }
 
+/* 复制正文按钮（与删除同款小图标，hover 才现身） */
+.msg-copy-btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:20px; height:20px; padding:0; border:none; border-radius:4px;
+  background:var(--bg-muted); color:var(--text-light); cursor:pointer;
+  opacity:.45; transition:all var(--duration-fast) var(--ease);
+}
+.msg-copy-btn:hover { opacity:1; background:var(--bg-hover); color:var(--text); }
+.msg-copy-btn.copied { opacity:1; color:var(--success); background:rgba(16,185,129,.1); }
+.msg-copy-btn { margin-left:4px; }
+
 /* === 原始请求/返回弹窗 === */
 .detail-modal-overlay {
   position:fixed; top:0; left:0; right:0; bottom:0; z-index:1000;

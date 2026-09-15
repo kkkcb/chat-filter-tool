@@ -57,12 +57,13 @@ md.renderer.rules.link_open = function(tokens, idx, options, env, self) {
 }
 
 // DOMPurify 配置：允许常见 Markdown 标签，禁止所有事件属性和危险标签
+// button 仅用于代码块复制（data-code-copy），无事件属性所以安全
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS: [
     'p', 'br', 'hr', 'strong', 'em', 'del', 's', 'code', 'pre',
     'blockquote', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-    'span', 'div', 'sup', 'sub',
+    'span', 'div', 'sup', 'sub', 'button',
   ],
   ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'target', 'rel', 'class'],
   FORBID_ATTR: ['style', 'onerror', 'onload', 'onclick', 'onmouseover'],
@@ -85,7 +86,8 @@ function protectSegments(text) {
   const segments = []
 
   // 先保护代码块 ```lang\ncode\n```（必须在 inline code 之前）
-  // 高亮在恢复阶段做（markdown-it 的 fence 规则见不到占位符）
+  // 高亮在恢复阶段做（markdown-it 的 fence 规则见不到占位符）。
+  // 外包 .code-block + 复制按钮：点击行为由 utils/codeCopy.js 全局委托处理
   let result = text.replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const id = segments.length
     const language = (lang || '').trim()
@@ -97,7 +99,10 @@ function protectSegments(text) {
     } else {
       inner = escapeHtml(code)
     }
-    segments.push(`<pre class="hljs"><code class="language-${language}">${inner}</code></pre>`)
+    segments.push(
+      `<div class="code-block"><button class="code-copy-btn">复制代码</button>`
+      + `<pre class="hljs"><code class="language-${language}">${inner}</code></pre></div>`
+    )
     return `${PH_START}${id}${PH_END}`
   })
 
