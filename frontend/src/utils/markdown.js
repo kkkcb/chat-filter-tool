@@ -1,5 +1,7 @@
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
 import python from 'highlight.js/lib/languages/python'
@@ -57,7 +59,9 @@ md.renderer.rules.link_open = function(tokens, idx, options, env, self) {
 }
 
 // DOMPurify 配置：允许常见 Markdown 标签，禁止所有事件属性和危险标签
-// button 仅用于代码块复制（data-code-copy），无事件属性所以安全
+// button 仅用于代码块复制（data-code-copy），无事件属性所以安全；
+// style 需放行——KaTeX 公式的上下标堆叠靠内联 style 定位，剥掉会符号错位
+// （现代浏览器 style 内不执行脚本，自有内容风险可控）
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS: [
     'p', 'br', 'hr', 'strong', 'em', 'del', 's', 'code', 'pre',
@@ -65,8 +69,8 @@ const SANITIZE_CONFIG = {
     'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
     'span', 'div', 'sup', 'sub', 'button',
   ],
-  ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'target', 'rel', 'class'],
-  FORBID_ATTR: ['style', 'onerror', 'onload', 'onclick', 'onmouseover'],
+  ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'target', 'rel', 'class', 'style', 'aria-hidden'],
+  FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
   FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'style'],
   ALLOW_DATA_ATTR: false,
 }
@@ -80,6 +84,42 @@ const PH_END = '\uE001'    // 私用区结束字符
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** LaTeX 数学公式 → KaTeX HTML（output:'html' 只产 span+class，MathML 不生成，
+ *  消毒白名单天然放行）。上下标定位依赖内联 style，消毒层需放行 style 属性 */
+function renderMathToHtml(tex, displayMode) {
+  try {
+    return katex.renderToString(tex, { throwOnError: false, displayMode, output: 'html' })
+  } catch {
+    return `<code>${escapeHtml(tex)}</code>`
+  }
+}
+
+/** 行内 $...$ 的误伤防线：内容必须含数学符号才算公式，
+ *  否则「价格 $5，成本 $3」这类普通美元文本会被吞掉 */
+const _MATHY = /[A-Za-z\\^_=+*/<>|,().-]/
+function toMathPlaceholder(segments, tex, displayMode) {
+  const id = segments.length
+  segments.push(renderMathToHtml(tex, displayMode))
+  return `${PH_START}${id}${PH_END}`
+}
+
+/** 数学公式保护：$$块级$$、$行内$、\(行内\)、\[块级\]。
+ *  必须在代码块/行内代码之后、emphasis 修复之前——公式里的 _ * ~
+ *  会被 fixInlineSyntax 当 Markdown 语法误伤，先换占位符隔离 */
+function protectMath(text, segments) {
+  // 块级：$$...$$（可跨行）与 \[...\]
+  text = text.replace(/\$\$[ \t]*\n?([\s\S]+?)\n?[ \t]*\$\$/g, (_, tex) =>
+    toMathPlaceholder(segments, tex.trim(), true))
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, tex) =>
+    toMathPlaceholder(segments, tex.trim(), true))
+  // 行内：$...$（同行，非贪婪；两侧不贴空格 + 含数学符号）与 \(...\)
+  text = text.replace(/\$([^\s$][^$\n]*?[^\s$]|[^\s$])\$/g, (m, tex) =>
+    _MATHY.test(tex) ? toMathPlaceholder(segments, tex, false) : m)
+  text = text.replace(/\\\(([^)\n]+?)\\\)/g, (m, tex) =>
+    _MATHY.test(tex) ? toMathPlaceholder(segments, tex, false) : m)
+  return text
 }
 
 function protectSegments(text) {
@@ -114,6 +154,10 @@ function protectSegments(text) {
     segments.push(`<code>${escapeHtml(content)}</code>`)
     return `${PH_START}${id}${PH_END}`
   })
+
+  // 最后保护数学公式（在代码之后：代码里的 $ 符号不算公式；
+  // 在 emphasis 之前：公式里的 _ * 会被行内语法规则误伤）
+  result = protectMath(result, segments)
 
   return {
     text: result,
@@ -221,7 +265,11 @@ export function renderMarkdown(text) {
 /** 用户消息渲染：禁 HTML 透传（尖括号内容原样显示），仍保留换行/链接识别 */
 export function renderUserText(text) {
   if (!text) return ''
-  let html = mdUser.render(text)
+  // 公式同款渲染（用户粘贴 $$..$$ 时两侧显示一致）；其余仍禁 HTML 透传
+  const segments = []
+  const protectedText = protectMath(text, segments)
+  let html = mdUser.render(protectedText)
+  html = html.replace(new RegExp(`${PH_START}(\\d+)${PH_END}`, 'g'), (_, i) => segments[parseInt(i)])
   html = DOMPurify.sanitize(html, SANITIZE_CONFIG)
   return html
 }
