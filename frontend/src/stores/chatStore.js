@@ -15,10 +15,12 @@ export const useChatStore = create((set, get) => ({
   abortController: null,
   deepThinking: false,
   useRag: false, // 「引用知识库」开关：关=纯对话不带参考资料（默认），开=检索素材/笔记并引用
+  useWeb: true, // 「联网抓取」开关：开=模型可按需调用 web_fetch 抓网页（默认开）
   lastSendParams: null, // 供 retry 复用（保留 conversationId/mode）
 
   toggleDeepThinking: () => set(state => ({ deepThinking: !state.deepThinking })),
   toggleUseRag: () => set(state => ({ useRag: !state.useRag })),
+  toggleUseWeb: () => set(state => ({ useWeb: !state.useWeb })),
 
   // 单句删除：从列表移除（有 messageId 的会同时已在服务端删除）
   removeMessage: (localId) => set(state => ({
@@ -60,7 +62,7 @@ export const useChatStore = create((set, get) => ({
       const resp = await fetch(`${API_PREFIX}/chat/stream`, {
         method: 'POST',
         headers: streamHeaders,
-        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, conversation_id: conversationId || null, files: files || undefined }),
+        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, use_web: get().useWeb, conversation_id: conversationId || null, files: files || undefined }),
         signal: abortController.signal,
       })
 
@@ -127,6 +129,10 @@ export const useChatStore = create((set, get) => ({
               }
             } else if (evt.type === 'citations') {
               safeUpdate({ citations: evt.data })
+            } else if (evt.type === 'tool_status') {
+              // 模型调用了 web_fetch：气泡上累积显示抓取痕迹
+              const cur = get()._getLastMsg()?.tools || []
+              safeUpdate({ tools: [...cur, evt.data], typing: false })
             } else if (evt.type === 'error') {
               safeUpdate({
                 content: `请求失败：${evt.data}`,

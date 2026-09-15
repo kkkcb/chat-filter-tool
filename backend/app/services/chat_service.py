@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.services.llm_service import llm_service, VISION_PRESETS
 from app.services.material_service import MaterialService
 from app.services.note_service import NoteService
+from app.services.web_tools import WEB_TOOLS, execute_web_tool
 
 
 class ChatService:
@@ -87,7 +88,7 @@ class ChatService:
             "entry": entry,
         }
 
-    async def handle_message_stream(self, message: str = "", image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True, files: list | None = None):
+    async def handle_message_stream(self, message: str = "", image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True, files: list | None = None, use_web: bool = False):
         """流式版统一入口 — yield (event_type, data_dict)"""
         if image:
             # 图片不支持流式，降级为普通调用
@@ -97,10 +98,14 @@ class ChatService:
 
         url_match = re.search(r"https?://[^\s<>\"']+", message)
         if url_match:
-            # 链接不支持流式，降级为普通调用
-            result = await self._handle_link(url_match.group(0))
-            yield ("done", result)
-            return
+            # 联网开启时：链接 + 还有别的话（如"总结下 https://… 这篇"）
+            # 走对话流，让模型自己调 web_fetch 工具——比静默转存素材更符合提问意图；
+            # 纯链接（粘贴收藏场景）仍走原有的抓取→确认保存流程
+            url_only = message.strip() == url_match.group(0).strip()
+            if not (use_web and not url_only):
+                result = await self._handle_link(url_match.group(0))
+                yield ("done", result)
+                return
 
         # 文件附件内容注入
         if files:
@@ -116,7 +121,7 @@ class ChatService:
                 message = message + "\n\n以下是用户上传的文件内容：\n\n" + "\n\n".join(file_parts)
 
         # 普通对话走流式
-        async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag):
+        async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag, use_web=use_web):
             yield event
 
     def _build_rag(self, question: str) -> tuple[str, list]:
@@ -177,27 +182,57 @@ class ChatService:
             return ""
         return "用户在消息里显式引用了以下内容（优先依据它们回答）：\n\n" + "\n\n".join(parts)
 
-    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True):
-        """流式知识库对话"""
+    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True, use_web: bool = False):
+        """流式知识库对话（use_web=True 时模型可调用 web_fetch 工具抓网页）"""
         rag_context, citations = self._build_rag(question) if use_rag else ("", [])
         mention_ctx = self._resolve_mentions(question)
         if mention_ctx:
             rag_context = (rag_context + "\n\n" + mention_ctx).strip()
         messages = self._build_messages(question, rag_context, history or [])
 
+        # 工具提示注入 system（GLM 拿到 tools 规格，这里补充「何时该用」）
+        if use_web:
+            messages[0]["content"] += (
+                "\n\n你配有 web_fetch 工具：消息里的链接、或回答需要网页具体内容"
+                "（文档/文章/版本信息）而你手上没有时，先调用工具抓取，拿到正文再回答；"
+                "抓取失败要如实告知。与网页无关的普通问题不要调用。"
+            )
+
         # 发送引用信息
         if citations:
             yield ("citations", citations)
 
-        # 流式输出
         full_content = ""
-        async for chunk_type, chunk_text in llm_service.chat_stream(messages, thinking=thinking):
-            if chunk_type == "error":
-                yield ("error", chunk_text)
-                return
-            yield (chunk_type, chunk_text)
-            if chunk_type == "content":
-                full_content += chunk_text
+        for _round in range(3):  # 最多 3 轮：足够 fetch→回答 或 fetch A→fetch B→回答
+            tool_calls = None
+            async for chunk_type, chunk_text in llm_service.chat_stream(
+                messages, thinking=thinking, tools=WEB_TOOLS if use_web else None
+            ):
+                if chunk_type == "error":
+                    yield ("error", chunk_text)
+                    return
+                if chunk_type == "tool_calls":
+                    tool_calls = chunk_text
+                    continue
+                yield (chunk_type, chunk_text)
+                if chunk_type == "content":
+                    full_content += chunk_text
+
+            if not tool_calls:
+                break
+
+            # 执行工具并把结果回灌，模型继续生成（正文接着上一轮流）
+            messages.append({"role": "assistant", "content": "", "tool_calls": tool_calls})
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                # 通知前端正在抓取（气泡上显示工具调用痕迹）
+                yield ("tool_status", {"name": fn.get("name", ""), "url": str(args.get("url", ""))[:200]})
+                result = await execute_web_tool(fn.get("name", ""), args)
+                messages.append({"role": "tool", "tool_call_id": tc.get("id", ""), "content": result})
 
         yield ("done", {"type": "chat", "reply": full_content})
 

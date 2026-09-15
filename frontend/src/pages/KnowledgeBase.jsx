@@ -3,7 +3,7 @@ import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
   Check, Copy, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
-  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion, Paperclip,
+  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion, Paperclip, Globe,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
 import { useVisionStore } from '../stores/visionStore'
@@ -34,7 +34,7 @@ const VISION_MODES = [
 ]
 
 export default function KnowledgeBase() {
-  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, removeMessage } = useChatStore()
+  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage } = useChatStore()
   const { selectedImage, selectedMode, setImage, setMode, clear } = useVisionStore()
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
@@ -286,6 +286,7 @@ export default function KnowledgeBase() {
     if (c === '/总结为笔记') { handleSendNote() }
     else if (c === '/深度思考') { toggleDeepThinking(); toast(deepThinking ? '已关闭深度思考' : '已开启深度思考', 'info') }
     else if (c === '/引用知识库') { toggleUseRag(); toast(useRag ? '已关闭知识库引用' : '已开启知识库引用', 'info') }
+    else if (c === '/联网') { toggleUseWeb(); toast(useWeb ? '已关闭联网抓取' : '已开启联网抓取', 'info') }
     else if (c === '/新对话') { handleNewConv() }
   }
 
@@ -640,6 +641,17 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
               <BookOpen size={14} strokeWidth={2} />
               <span>引用知识库</span>
               <span className={`think-switch ${useRag ? 'on' : ''}`}>
+                <span className="think-switch-knob" />
+              </span>
+            </button>
+            <button
+              className={`think-toggle ${useWeb ? 'active' : ''}`}
+              onClick={toggleUseWeb}
+              title={useWeb ? '已开启：模型可按需抓取网页（链接+提问会读取网页正文）' : '已关闭：模型不联网，纯本地知识回答'}
+            >
+              <Globe size={14} strokeWidth={2} />
+              <span>联网抓取</span>
+              <span className={`think-switch ${useWeb ? 'on' : ''}`}>
                 <span className="think-switch-knob" />
               </span>
             </button>
@@ -1056,6 +1068,17 @@ const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, o
           style={!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) ? { cursor: 'pointer' } : {}}
         >
           {msg.image && <img className="vision-image" src={msg.image} alt="用户上传" />}
+
+          {/* 模型本轮调用的抓取工具痕迹（联网抓取开启时） */}
+          {!isUser && msg.tools?.length > 0 && (
+            <div className="msg-tools">
+              {msg.tools.map((t, i) => (
+                <span key={i} className="msg-tool-badge" title={t.url}>
+                  <Globe size={10} strokeWidth={2.2} /> {t.url || t.name}
+                </span>
+              ))}
+            </div>
+          )}
 
           {!isUser && msg.reasoning && (
             <div className={`reasoning-block ${showReasoning ? 'expanded' : 'collapsed'}`}>

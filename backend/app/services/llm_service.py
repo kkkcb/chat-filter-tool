@@ -54,9 +54,12 @@ class LLMService:
         """通用文本对话"""
         return await self._call(messages, json_mode=json_mode, temperature=temperature)
 
-    async def chat_stream(self, messages, temperature=0.7, thinking=True):
-        """流式对话 — yield (type, content) where type is 'reasoning' or 'content'
+    async def chat_stream(self, messages, temperature=0.7, thinking=True, tools=None):
+        """流式对话 — yield (type, content) where type is 'reasoning' / 'content' / 'tool_calls'
         thinking=True 开启深度思考（慢但深度），False 关闭（快速响应）
+        tools 传入 OpenAI 格式工具清单时启用 function calling：模型请求调用
+        工具时一次性 yield ('tool_calls', [{id, function:{name, arguments}}])，
+        由调用方执行工具、把结果追加进 messages 后再次调用本方法。
         """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -69,6 +72,8 @@ class LLMService:
             "stream": True,
             "max_tokens": 4096,
         }
+        if tools:
+            payload["tools"] = tools
         # 关闭思考模式可大幅降低首 token 延迟
         if not thinking:
             payload["thinking"] = {"type": "disabled"}
@@ -86,6 +91,8 @@ class LLMService:
                 _t0 = _time.time()
                 _first = True
                 _count = 0
+                # tool_calls 流式分片按 index 拼装：id/name 首片到达，arguments 逐片追加
+                _tool_calls: dict[int, dict] = {}
 
                 async for line in resp.aiter_lines():
                     if not line or not line.startswith("data: "):
@@ -95,7 +102,8 @@ class LLMService:
                         break
                     try:
                         chunk = json.loads(data_str)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        choice = chunk.get("choices", [{}])[0]
+                        delta = choice.get("delta", {})
 
                         if "reasoning_content" in delta and delta["reasoning_content"]:
                             if _first:
@@ -110,6 +118,25 @@ class LLMService:
                                 _first = False
                             _count += 1
                             yield ("content", delta["content"])
+
+                        for tc in delta.get("tool_calls") or []:
+                            idx = tc.get("index", 0)
+                            slot = _tool_calls.setdefault(idx, {
+                                "id": "", "type": "function",
+                                "function": {"name": "", "arguments": ""},
+                            })
+                            if tc.get("id"):
+                                slot["id"] = tc["id"]
+                            fn = tc.get("function") or {}
+                            if fn.get("name"):
+                                slot["function"]["name"] += fn["name"]
+                            if fn.get("arguments"):
+                                slot["function"]["arguments"] += fn["arguments"]
+
+                        if choice.get("finish_reason") == "tool_calls" and _tool_calls:
+                            calls = [_tool_calls[i] for i in sorted(_tool_calls)]
+                            print(f"[LLM Stream] Tool calls: {[c['function']['name'] for c in calls]}")
+                            yield ("tool_calls", calls)
 
                     except json.JSONDecodeError:
                         continue

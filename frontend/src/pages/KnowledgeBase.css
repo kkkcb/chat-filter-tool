@@ -500,6 +500,15 @@
 
 .msg-placeholder { color:var(--text-light); animation:pulse 1s infinite; }
 
+/* 模型工具调用痕迹（联网抓取） */
+.msg-tools { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
+.msg-tool-badge {
+  display:inline-flex; align-items:center; gap:4px; max-width:100%;
+  font-size:10.5px; color:var(--text-muted); background:var(--bg-muted);
+  border:1px solid var(--border); padding:2px 8px; border-radius:9px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
 /* === 思考过程 === */
 .reasoning-block {
   margin-bottom:10px; border:1px solid var(--border); border-radius:var(--radius-sm);
