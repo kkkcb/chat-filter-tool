@@ -191,11 +191,19 @@ class ChatService:
         messages = self._build_messages(question, rag_context, history or [])
 
         # 工具提示注入 system（GLM 拿到 tools 规格，这里补充「何时该用」）
+        # 原生 web_search 由智谱服务端执行（按次计费，费用很低），web_fetch 由本机执行
+        tools = None
         if use_web:
+            tools = [
+                {"type": "web_search", "web_search": {"search_result": True}},
+                *WEB_TOOLS,
+            ]
             messages[0]["content"] += (
-                "\n\n你配有 web_fetch 工具：消息里的链接、或回答需要网页具体内容"
-                "（文档/文章/版本信息）而你手上没有时，先调用工具抓取，拿到正文再回答；"
-                "抓取失败要如实告知。与网页无关的普通问题不要调用。"
+                "\n\n你配有 web_search（关键词搜索，拿案例/找资料/查最新信息用）和 "
+                "web_fetch（抓取指定网页正文）两个工具：需要具体案例、代码示例、"
+                "最新信息而你手上没有时，先搜索再按需抓取结果页正文；"
+                "用户消息里的链接要用 web_fetch 读取。抓取失败要如实告知。"
+                "与外部信息无关的问题不要调用。打算继续调用工具时直接调用，不要只口头说「我再抓一下」。"
             )
 
         # 发送引用信息
@@ -206,7 +214,7 @@ class ChatService:
         for _round in range(3):  # 最多 3 轮：足够 fetch→回答 或 fetch A→fetch B→回答
             tool_calls = None
             async for chunk_type, chunk_text in llm_service.chat_stream(
-                messages, thinking=thinking, tools=WEB_TOOLS if use_web else None
+                messages, thinking=thinking, tools=tools
             ):
                 if chunk_type == "error":
                     yield ("error", chunk_text)

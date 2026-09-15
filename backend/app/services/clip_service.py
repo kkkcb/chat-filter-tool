@@ -20,15 +20,15 @@ class ClipService:
         return "web"
 
     @staticmethod
-    async def fetch(url: str) -> dict | None:
-        """统一抓取入口"""
+    async def fetch(url: str, max_chars: int = 2000, full_text: bool = False) -> dict | None:
+        """统一抓取入口（max_chars/full_text 仅对普通网页生效，见 _fetch_webpage）"""
         source = ClipService.detect_source(url)
         if source == "github":
             return await ClipService._fetch_github(url)
         elif source == "wechat":
             return await ClipService._fetch_wechat(url)
         else:
-            return await ClipService._fetch_webpage(url)
+            return await ClipService._fetch_webpage(url, max_chars=max_chars, full_text=full_text)
 
     @staticmethod
     async def _fetch_html(url: str, timeout: int = 40) -> str | None:
@@ -176,8 +176,14 @@ class ClipService:
         }
 
     @staticmethod
-    async def _fetch_webpage(url: str) -> dict | None:
-        """普通网页"""
+    async def _fetch_webpage(url: str, max_chars: int = 2000, full_text: bool = False) -> dict | None:
+        """普通网页
+
+        max_chars：正文截断长度。素材预览用默认 2000；web_fetch 工具用
+        full_text=True——先剥掉 nav/header/aside/footer 再取长正文，否则
+        文档站（sphinx/docusaurus 等）的前 2000 字全是侧边导航目录，
+        模型拿到的"正文"其实是一堆菜单（实测 sbert.net 即如此）。
+        """
         html = await ClipService._fetch_html(url)
         if not html:
             return None
@@ -197,10 +203,11 @@ class ClipService:
         body_text = ""
         body = soup.find("body")
         if body:
-            # 移除 script/style
-            for tag in body.find_all(["script", "style"]):
+            # 移除 script/style；工具模式连导航壳一起剥，正文才露出来
+            drop = ["script", "style"] + (["nav", "header", "aside", "footer", "form"] if full_text else [])
+            for tag in body.find_all(drop):
                 tag.decompose()
-            body_text = body.get_text(separator=" ", strip=True)[:2000]
+            body_text = body.get_text(separator=" ", strip=True)[:max_chars]
 
         return {
             "title": title,

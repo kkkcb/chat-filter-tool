@@ -38,7 +38,9 @@ WEB_TOOLS = [
     }
 ]
 
-# 结果截断：正文给 6000 字足够模型引用关键内容，又不至于挤爆上下文
+# 工具侧正文预算：剥掉导航壳后取 8000 字，再由 _MAX_RESULT_CHARS 截到 6000。
+# 不能用素材预览的默认 2000——文档站前 2000 字全是侧边目录，模型只能看到菜单
+_FETCH_CHARS = 8000
 _MAX_RESULT_CHARS = 6000
 
 # 内网/回环防护：模型不该经由工具访问部署机自身或内网服务
@@ -63,7 +65,7 @@ async def execute_web_tool(name: str, arguments: dict) -> str:
         return "不允许访问内网/本机地址"
 
     try:
-        data = await ClipService.fetch(url)
+        data = await ClipService.fetch(url, max_chars=_FETCH_CHARS, full_text=True)
     except Exception as e:
         return f"抓取异常: {str(e)[:120]}"
 
