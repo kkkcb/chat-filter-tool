@@ -703,9 +703,9 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
             messages.map((msg, i) => (
               <div key={msg.id ?? `idx-${i}`} data-msg-idx={i} className="msg-row-wrap"
                 onMouseUp={(e) => handleTextSelect(e, msg, i)}>
-                <MessageBubble msg={msg} index={i}
+                <MessageBubble msg={msg} index={i} isLast={i === messages.length - 1}
                 onConfirmSave={confirmSave} onDismissSave={dismissSave}
-                onRetry={retry}
+                onRetry={() => retry(activeId, refreshAfterMessage)}
                 onShowDetail={openMessageDetail}
                 onDelete={() => handleDeleteMessage(msg)}
                 bookmarked={bookmarks.some(b => b.msgId === msg.id)}
@@ -1015,7 +1015,7 @@ function ConvItem({ conv, index, isActive, onSelect, onRename, onDelete, onDragR
 }
 
 /* === 消息气泡（支持流式 + 思考过程 + 双击查看原始数据 + 单句删除） === */
-const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete }) {
+const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete, isLast }) {
   const isUser = msg.role === 'user'
   const [showReasoning, setShowReasoning] = useState(true)
   const [bubbleCopied, setBubbleCopied] = useState(false)
@@ -1061,6 +1061,16 @@ const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, o
               onClick={onDelete}
             >
               <Trash2 size={11} strokeWidth={2} />
+            </button>
+          )}
+          {/* 重新生成：最后一条 AI 回复专属（中止的消息已有块内按钮）*/}
+          {!isUser && isLast && !msg.streaming && !msg.typing && !msg.aborted && msg.content && onRetry && (
+            <button
+              className="msg-retry-btn"
+              title="重新生成这条回复"
+              onClick={(e) => { e.stopPropagation(); onRetry() }}
+            >
+              <RotateCcw size={11} strokeWidth={2} />
             </button>
           )}
           {/* 复制正文（不含思考过程）；删除按钮带 margin-left:auto 负责右推 */}

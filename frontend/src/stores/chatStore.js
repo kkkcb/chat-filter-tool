@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { sendChat, confirmSave } from '../api/chat'
 import { getAccessToken, API_PREFIX } from '../api/client'
-import { updateMessageContent } from '../api/conversations'
+import { updateMessageContent, deleteMessage } from '../api/conversations'
 
 // 消息唯一 id（比数组下标更适合作为 React key）
 let nextMsgId = 1
@@ -32,7 +32,7 @@ export const useChatStore = create((set, get) => ({
 
     const thinking = get().deepThinking
     const abortController = new AbortController()
-    set({ isSending: true, abortController, lastSendParams: { text, image, mode, conversationId, onComplete } })
+    set({ isSending: true, abortController, lastSendParams: { text, image, mode, conversationId, onComplete, files } })
 
     // Add user message
     const userMsg = {
@@ -192,9 +192,11 @@ export const useChatStore = create((set, get) => ({
     if (abortController) abortController.abort()
   },
 
-  // 重试最后一条消息（复用发送时的 conversationId/mode，避免新建对话）
-  retry: async () => {
-    const { messages, lastSendParams } = get()
+  // 手动重试 / 重新生成：重发最后一条用户消息
+  // fallback 参数用于页面刷新后（lastSendParams 已丢）从当前选中会话兜底
+  retry: async (fallbackConvId = null, fallbackOnComplete = null) => {
+    const { messages, lastSendParams, isSending } = get()
+    if (isSending) return
     // 找最后一条用户消息
     let lastUserIdx = -1
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -203,14 +205,20 @@ export const useChatStore = create((set, get) => ({
     if (lastUserIdx === -1) return
 
     const lastUser = messages[lastUserIdx]
-    // 删除该用户消息之后的所有消息
-    set({ messages: messages.slice(0, lastUserIdx) })
+    // 服务端先删除这批消息再重发（重发会重新入库）：必须等删除落库，
+    // 否则新请求加载历史时旧消息还在，会混进重发请求的上下文
+    const doomed = messages.slice(lastUserIdx).filter(m => m.messageId)
+    set({ messages: messages.slice(0, lastUserIdx) }) // 本地先移除，UI 即刻回位
+    try {
+      await Promise.all(doomed.map(m => deleteMessage(m.messageId)))
+    } catch { /* 删除失败不阻塞重试 */ }
     // 重新发送
     await get().sendMessage(
       lastUser.content, lastUser.image,
       lastSendParams?.mode || '',
-      lastSendParams?.conversationId || null,
-      lastSendParams?.onComplete,
+      lastSendParams?.conversationId ?? fallbackConvId,
+      lastSendParams?.onComplete ?? fallbackOnComplete,
+      lastSendParams?.files ?? null,
     )
   },
 
