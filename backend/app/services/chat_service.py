@@ -211,10 +211,15 @@ class ChatService:
             yield ("citations", citations)
 
         full_content = ""
-        for _round in range(3):  # 最多 3 轮：足够 fetch→回答 或 fetch A→fetch B→回答
+        # 工具轮次上限：搜索后模型常要连抓 3-5 个页面（实测 3 轮不够被掐断，
+        # 产出 0 字正文）。最后一轮不再下发工具，强制模型基于已有材料作答，
+        # 从机制上保证不会"轮次耗尽、正文为空"
+        MAX_TOOL_ROUNDS = 6
+        for _round in range(MAX_TOOL_ROUNDS):
+            round_tools = tools if _round < MAX_TOOL_ROUNDS - 1 else None
             tool_calls = None
             async for chunk_type, chunk_text in llm_service.chat_stream(
-                messages, thinking=thinking, tools=tools
+                messages, thinking=thinking, tools=round_tools
             ):
                 if chunk_type == "error":
                     yield ("error", chunk_text)
@@ -242,6 +247,9 @@ class ChatService:
                 result = await execute_web_tool(fn.get("name", ""), args)
                 messages.append({"role": "tool", "tool_call_id": tc.get("id", ""), "content": result})
 
+        # 兜底：任何路径下都不存 0 字正文（刷新后气泡全空、双击只看到 content_length:0）
+        if not full_content.strip():
+            full_content = "（模型未返回正文，可能是服务繁忙，请点 ↻ 重试）"
         yield ("done", {"type": "chat", "reply": full_content})
 
     async def _handle_chat(self, question: str, history: list | None = None) -> dict:
