@@ -241,6 +241,12 @@ export function extractOutline(text, { maxLen = 24 } = {}) {
 export function renderMarkdown(text) {
   if (!text) return ''
 
+  // 0. 流式容错：``` 数量为奇数 = 有未闭合代码块（AI 还在输出）。
+  //    markdown-it 对未闭合围栏本身宽容，但我们的保护正则要求闭合才匹配——
+  //    不补的话半截代码漏进行内语法修复会被 _ * ~ 误伤，且没有高亮
+  const fences = text.match(/^```/gm)
+  if (fences && fences.length % 2 !== 0) text += '\n```'
+
   // 1. 保护 code 和已有 HTML
   const { text: protectedText, restore } = protectSegments(text)
 
