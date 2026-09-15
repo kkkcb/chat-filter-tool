@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import katex from 'katex'
+import remend from 'remend'
 import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
@@ -122,27 +123,43 @@ function protectMath(text, segments) {
   return text
 }
 
+// 代码块渲染缓存：流式期间前端每 ~100ms 全量重渲染整条消息，已完成代码块
+// 的高亮结果不会再变，命中缓存后重算只发生在正在生长的最后一个块上
+// （streamdown 的块级稳定思路在自研管线里的等价实现）
+const _fenceCache = new Map()
+const _FENCE_CACHE_MAX = 300
+
+function _renderFence(lang, code) {
+  const key = `${lang}\u0000${code}`
+  let html = _fenceCache.get(key)
+  if (html === undefined) {
+    let inner
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        inner = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
+      } catch { inner = escapeHtml(code) }
+    } else {
+      inner = escapeHtml(code)
+    }
+    html = (
+      `<div class="code-block"><button class="code-copy-btn">复制代码</button>`
+      + `<pre class="hljs"><code class="language-${lang}">${inner}</code></pre></div>`
+    )
+    if (_fenceCache.size > _FENCE_CACHE_MAX) _fenceCache.clear()
+    _fenceCache.set(key, html)
+  }
+  return html
+}
+
 function protectSegments(text) {
   const segments = []
 
   // 先保护代码块 ```lang\ncode\n```（必须在 inline code 之前）
   // 高亮在恢复阶段做（markdown-it 的 fence 规则见不到占位符）。
-  // 外包 .code-block + 复制按钮：点击行为由 utils/codeCopy.js 全局委托处理
+  // 外包 .code-block + 复制按钮：点击行为由 utils/clipboard.js 全局委托处理
   let result = text.replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const id = segments.length
-    const language = (lang || '').trim()
-    let inner
-    if (language && hljs.getLanguage(language)) {
-      try {
-        inner = hljs.highlight(code, { language, ignoreIllegals: true }).value
-      } catch { inner = escapeHtml(code) }
-    } else {
-      inner = escapeHtml(code)
-    }
-    segments.push(
-      `<div class="code-block"><button class="code-copy-btn">复制代码</button>`
-      + `<pre class="hljs"><code class="language-${language}">${inner}</code></pre></div>`
-    )
+    segments.push(_renderFence((lang || '').trim(), code))
     return `${PH_START}${id}${PH_END}`
   })
 
@@ -241,11 +258,14 @@ export function extractOutline(text, { maxLen = 24 } = {}) {
 export function renderMarkdown(text) {
   if (!text) return ''
 
-  // 0. 流式容错：``` 数量为奇数 = 有未闭合代码块（AI 还在输出）。
-  //    markdown-it 对未闭合围栏本身宽容，但我们的保护正则要求闭合才匹配——
-  //    不补的话半截代码漏进行内语法修复会被 _ * ~ 误伤，且没有高亮
+  // 0. 流式容错（streamdown 同款思路，remend 即其终止逻辑独立版）：
+  //    a) 块级代码围栏奇数 → 补闭合（remend 不处理块级围栏）。必须先补，
+  //       remend 才能正确识别并跳过代码内容
+  //    b) remend 补其余未闭合行内语法：**粗体、[链接、~~删除线、$$公式、
+  //       未完成图片直接移除。完整内容零改动，美元金额不误伤（已实测）
   const fences = text.match(/^```/gm)
   if (fences && fences.length % 2 !== 0) text += '\n```'
+  text = remend(text)
 
   // 1. 保护 code 和已有 HTML
   const { text: protectedText, restore } = protectSegments(text)
