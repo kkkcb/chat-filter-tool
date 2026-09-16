@@ -4,6 +4,8 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.models.note import Note
+from app.models.material import Material
 from app.services.llm_service import llm_service, VISION_PRESETS
 from app.services.material_service import MaterialService
 from app.services.note_service import NoteService
