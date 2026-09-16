@@ -722,7 +722,7 @@
 .chat-history-bar { transition:width var(--duration) var(--ease), min-width var(--duration) var(--ease); overflow:hidden; }
 .chat-history-bar.collapsed { width:32px !important; min-width:32px !important; }
 .chat-history-bar.collapsed .ch-new-btn,
-.chat-history-bar.collapsed .conv-list { display:none !important; }
+.chat-history-bar.collapsed .chat-history-list { display:none !important; }
 .chat-history-bar.collapsed .chat-history-header {
   flex-direction:column; padding:12px 0; justify-content:flex-start; border:none;
 }
@@ -742,18 +742,23 @@
 /* 对话节点导航：左侧竖轨 */
 .chat-node-track {
   position:absolute; left:max(2px, calc(50% - 406px)); top:50%; transform:translateY(-50%); z-index:10;
-  display:flex; flex-direction:column; gap:6px; align-items:center;
+  display:flex; flex-direction:column; gap:12px; align-items:center;
   padding:4px 2px; max-height:55vh; overflow-y:auto;
   background:transparent; border:none; box-shadow:none; border-radius:0;
 }
 .chat-node-dot {
   width:12px; height:12px; border-radius:50%; border:none;
-  background:#9ca3af; cursor:pointer; padding:0;
+  background:#9ca3af; cursor:pointer; padding:0; flex-shrink:0;
   transition:all var(--duration-fast) var(--ease);
   box-shadow:0 0 0 2px rgba(255,255,255,.8);
 }
-.chat-node-dot:hover { background:var(--accent); transform:scale(1.6); }
-.chat-node-dot.current { background:var(--accent); transform:scale(1.4); box-shadow:0 0 0 3px var(--accent-glow); }
+.chat-node-dot:hover { background:var(--accent); transform:scale(1.25); }
+/* 当前节点用真实尺寸而非 scale——scale 不占布局空间，16.8px 的视觉
+   尺寸挤在 6px 间隙里和相邻点几乎贴死 */
+.chat-node-dot.current {
+  width:16px; height:16px; background:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-glow);
+}
 
 /* 对话沉淀笔记选择弹窗 */
 .conv-notes-modal {
