@@ -810,19 +810,17 @@
 .chat-input-wrap { border-style:solid; }
 .chat-input-wrap.drag-over { border-color:var(--accent); border-style:dashed; background:var(--accent-light); }
 
-/* 节点悬停预览：显示完整问题文本 */
-.chat-node-dot { position:relative; }
-.chat-node-preview {
-  display:none; position:absolute; left:100%; top:50%; transform:translateY(-50%);
-  margin-left:10px; padding:6px 12px; min-width:140px; max-width:280px;
+/* 节点悬停预览：fixed 挂在组件根，显示完整问题文本。
+   旧的绝对定位方案会被轨道的 overflow-y:auto 横向裁剪（CSS 规范：
+   一个方向非 visible，另一个方向也按 visible 以外处理），永远显示不出 */
+.chat-node-preview-float {
+  position:fixed; transform:translateY(-50%); z-index:300;
+  max-width:300px; padding:7px 12px;
   background:var(--bg-card); border:1px solid var(--border);
   border-radius:8px; box-shadow:var(--shadow-lg);
   font-size:12px; line-height:1.55; color:var(--text-secondary);
-  white-space:normal; word-break:break-all; text-align:left;
-  pointer-events:none; z-index:100;
-}
-.chat-node-dot:hover .chat-node-preview {
-  display:block; animation:nodePreviewIn .12s var(--ease);
+  white-space:pre-wrap; word-break:break-all; text-align:left;
+  pointer-events:none; animation:nodePreviewIn .12s var(--ease);
 }
 @keyframes nodePreviewIn {
   from { opacity:0; transform:translateY(-50%) translateX(-4px); }

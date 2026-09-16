@@ -44,6 +44,7 @@ export default function KnowledgeBase() {
   const [palette, setPalette] = useState(null) // 'slash' | 'at' | null
   const [readingMode, setReadingMode] = useState(false) // 全屏阅读
   const [historyCollapsed, setHistoryCollapsed] = useState(false) // 侧栏收起
+  const [nodePreview, setNodePreview] = useState(null) // 导航点悬停预览 {text,x,y}
   const [bookmarks, setBookmarks] = useState([]) // 一次性标记 [{msgId, label}]
   const [askPanel, setAskPanel] = useState(null) // {quote, question, messages: [], sending}
   const [paletteIdx, setPaletteIdx] = useState(0)
@@ -665,18 +666,22 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
             {messages.map((msg, i) => {
               if (msg.role !== 'user' || !msg.content) return null
               const fullText = typeof msg.content === 'string' ? msg.content : ''
-              const preview = fullText.slice(0, 120).replace(/\n/g, ' ')
               return (
                 <button
                   key={msg.id || i}
                   className={`chat-node-dot ${i === currentNodeIdx ? 'current' : ''}`}
+                  onMouseEnter={(e) => {
+                    // 预览卡 fixed 定位渲染在组件根部：轨道是 overflow-y:auto
+                    // 的滚动容器，绝对定位子元素会被横向裁掉（CSS 规范行为）
+                    const r = e.currentTarget.getBoundingClientRect()
+                    setNodePreview({ text: fullText, x: r.right + 10, y: r.top + r.height / 2 })
+                  }}
+                  onMouseLeave={() => setNodePreview(null)}
                   onClick={() => {
                     const el = document.querySelector(`[data-msg-idx="${i}"]`)
                     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                   }}
-                >
-                  <span className="chat-node-preview">{preview}{fullText.length > 120 ? '…' : ''}</span>
-                </button>
+                />
               )
             })}
           </div>
@@ -790,6 +795,13 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 导航点悬停预览：fixed 定位，脱离轨道滚动容器的裁剪 */}
+        {nodePreview && (
+          <div className="chat-node-preview-float" style={{ left: nodePreview.x, top: nodePreview.y }}>
+            {nodePreview.text.length > 260 ? nodePreview.text.slice(0, 260) + '…' : nodePreview.text}
           </div>
         )}
 
