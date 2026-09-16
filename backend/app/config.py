@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     glm_endpoint: str = "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions"
     glm_model: str = "glm-5.2"
     glm_vision_model: str = "glm-4.6v"
+    # 润色/总结等轻量文字任务用 flash（实测 11s vs glm-5.3 的 16~29s+，质量相当）
+    glm_polish_model: str = "glm-5.3-flash"
 
     # Database
     database_path: str = "../data/workbench.db"

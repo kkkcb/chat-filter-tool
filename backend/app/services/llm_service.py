@@ -14,6 +14,7 @@ class LLMService:
         self.endpoint = settings.glm_endpoint
         self.text_model = settings.glm_model
         self.vision_model = settings.glm_vision_model
+        self.polish_model = settings.glm_polish_model
         self._client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
@@ -38,6 +39,10 @@ class LLMService:
         payload = {"model": model, "messages": messages, "temperature": temperature}
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        # 关闭思考模式：非流式调用的内容要等推理全部结束才返回，
+        # 润色/总结这类任务开着思考 = 白白多等几十上百秒
+        # （chat_stream 按用户开关控制，不在此处）
+        payload["thinking"] = {"type": "disabled"}
 
         last_err = None
         for attempt in range(retries + 1):
@@ -234,8 +239,10 @@ class LLMService:
 {content[:30000]}"""
         return await self._call(
             [{"role": "user", "content": prompt}],
-            # GLM 高负载时润色要 90~180s+，超时/限流重试一次大幅提高成功率
-            temperature=0.3, timeout=180, retries=1
+            # flash 模型：文字润色质量与主模型相当，速度 2~3 倍
+            # （glm-5.3 高负载时 90~180s+，flash 稳定在十几秒）
+            model=self.polish_model,
+            temperature=0.3, timeout=120, retries=1
         )
 
     async def summarize_note(self, transcript: str, instruction: str = "",
