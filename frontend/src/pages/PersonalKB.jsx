@@ -497,16 +497,32 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     }
   }
 
-  // AI 一键润色 → 对比视图（采用与否由用户决定，原文不动）
+  // AI 润色 → 对比视图（采用与否由用户决定，原文不动）
+  // 编辑器里有选区 → 只润色选中片段（严格忠于原文），否则润色整篇
   const handlePolish = async () => {
     if (!content.trim() || polishing) return
+    const ed = editorRef.current
+    const sel = ed?.state?.selection
+    const hasSel = sel && !sel.empty && sel.to - sel.from >= 2
+
     setPolishing(true)
     try {
-      const r = await polishNote(content)
-      if (r.content && r.content !== content) {
-        setDiffView({ polished: r.content })
+      if (hasSel) {
+        // textBetween 取选中区的纯文本（块边界用空行分隔），润色后按原 range 替换回去
+        const selText = ed.state.doc.textBetween(sel.from, sel.to, '\n\n')
+        const r = await polishNote(selText, 'selection')
+        if (r.content && r.content !== selText) {
+          setDiffView({ polished: r.content, original: selText, range: { from: sel.from, to: sel.to }, mode: 'selection' })
+        } else {
+          toast('选中片段润色结果与原文相同', 'info')
+        }
       } else {
-        toast('润色结果与原文相同，无需修改', 'info')
+        const r = await polishNote(content)
+        if (r.content && r.content !== content) {
+          setDiffView({ polished: r.content, original: content, mode: 'full' })
+        } else {
+          toast('润色结果与原文相同，无需修改', 'info')
+        }
       }
     } catch (e) {
       toast(e?.message || '润色失败', 'error')
@@ -514,10 +530,19 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
     setPolishing(false)
   }
 
-  // 采用润色：写回编辑器（对比视图关闭）
+  // 采用润色：整篇→写回 state；片段→按原选区 range 替换编辑器内容，
+  // onChange(getMarkdown()) 会自动同步回 content state
   const applyPolish = () => {
     if (!diffView) return
-    setContent(diffView.polished) // TiptapEditor 的 value 同步会刷新编辑器
+    if (diffView.mode === 'selection' && diffView.range && editorRef.current) {
+      editorRef.current
+        .chain()
+        .focus()
+        .insertContentAt(diffView.range, diffView.polished)
+        .run()
+    } else {
+      setContent(diffView.polished) // TiptapEditor 的 value 同步会刷新编辑器
+    }
     setDiffView(null)
     toast('已采用润色结果（保存前仍可继续编辑）', 'success')
   }
@@ -723,7 +748,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
                 const url = window.prompt('链接地址（留空取消）')
                 if (url) tp()?.setLink({ href: url }).run()
               }}>🔗</button>
-              <button className="pkb-md-polish" title="AI 一键润色整理" onClick={handlePolish} disabled={polishing}>
+              <button className="pkb-md-polish" title="润色：选中文字→只润选中片段（忠于原文），未选中→润色整篇" onClick={handlePolish} disabled={polishing}>
                 {polishing ? <Loader2 size={12} className="wx-spin" /> : <Wand2 size={12} />} {polishing ? '润色中' : '✨ 润色'}
               </button>
               <span className="pkb-md-hint">输入 # / 1. / - 加空格即变样式</span>
@@ -804,7 +829,12 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
         <div className="polish-overlay">
           <div className="polish-modal" onClick={(e) => e.stopPropagation()}>
             <div className="polish-header">
-              <span><Wand2 size={15} strokeWidth={2} /> 润色对比</span>
+              <span>
+                <Wand2 size={15} strokeWidth={2} /> 润色对比
+                {diffView.mode === 'selection' && (
+                  <span className="polish-scope-badge">选中片段</span>
+                )}
+              </span>
               <div className="polish-header-btns">
                 <button className="polish-btn ghost" onClick={() => setDiffView(null)}>放弃</button>
                 <button className="polish-btn primary" onClick={applyPolish}><Check size={13} /> 采用润色</button>
@@ -814,13 +844,13 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
               <span className="lg-del">删除的内容</span>
               <span className="lg-add">润色新增</span>
               <span className="lg-count">{(() => {
-                const d = diffTexts(content, diffView.polished)
+                const d = diffTexts(diffView.original, diffView.polished)
                 const changes = d.filter(x => x.type !== 'same').length
                 return `${changes} 处修改 / 共 ${d.length} 行`
               })()}</span>
             </div>
             <div className="polish-body">
-              {diffTexts(content, diffView.polished).map((d, i) => {
+              {diffTexts(diffView.original, diffView.polished).map((d, i) => {
                 if (d.type === 'same') return <div key={i} className="pl same"><span className="pl-tag" /><span className="pl-old">{d.old || ' '}</span><span className="pl-new">{d.new || ' '}</span></div>
                 if (d.type === 'mod') return <div key={i} className="pl mod"><span className="pl-tag">改</span><span className="pl-old" dangerouslySetInnerHTML={{ __html: d.oldHtml || '' }} /><span className="pl-new" dangerouslySetInnerHTML={{ __html: d.newHtml || '' }} /></div>
                 if (d.type === 'del') return <div key={i} className="pl del"><span className="pl-tag">删</span><span className="pl-old">{d.old}</span><span className="pl-new" /></div>

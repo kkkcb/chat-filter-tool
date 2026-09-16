@@ -56,9 +56,10 @@ export const uploadNoteImage = async (file) => {
   return resp.json()
 }
 
-/** AI 一键润色整理笔记正文 → { content: 润色后全文 }（不落库，对比后由用户决定采用） */
-export const polishNote = (content) =>
-  request('/notes/polish', { method: 'POST', body: JSON.stringify({ content }) })
+/** AI 润色笔记正文 → { content }（不落库，对比后由用户决定采用）
+ *  mode: full=整篇 / selection=仅选中片段（严格忠于原文） */
+export const polishNote = (content, mode = 'full') =>
+  request('/notes/polish', { method: 'POST', body: JSON.stringify({ content, mode }) })
 
 /** 笔记的来源对话（互跳用） */
 export const getNoteSource = (id) => request(`/notes/${id}/source`)

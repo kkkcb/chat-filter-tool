@@ -28,8 +28,8 @@ class LLMService:
             await self._client.aclose()
             self._client = None
 
-    async def _call(self, messages, model=None, json_mode=False, temperature=0.7, timeout=60) -> str | None:
-        """底层调用方法"""
+    async def _call(self, messages, model=None, json_mode=False, temperature=0.7, timeout=60, retries=0) -> str | None:
+        """底层调用方法（retries：超时/429 失败时的原地重试次数）"""
         model = model or self.text_model
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -39,15 +39,27 @@ class LLMService:
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
-        try:
-            resp = await self._get_client().post(
-                self.endpoint, headers=headers, json=payload, timeout=timeout
-            )
-            if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"].strip()
-            print(f"[LLM] HTTP {resp.status_code}: {resp.text[:200]}")
-        except Exception as e:
-            print(f"[LLM] 调用失败: {e}")
+        last_err = None
+        for attempt in range(retries + 1):
+            try:
+                resp = await self._get_client().post(
+                    self.endpoint, headers=headers, json=payload, timeout=timeout
+                )
+                if resp.status_code == 200:
+                    return resp.json()["choices"][0]["message"]["content"].strip()
+                # 429 限流值得重试；4xx 参数类错误重试无意义
+                last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                print(f"[LLM] {last_err}")
+                if resp.status_code != 429:
+                    return None
+            except Exception as e:
+                # httpx 超时类异常 str() 常为空，必须打类型
+                last_err = f"{type(e).__name__}: {e}"
+                print(f"[LLM] 调用失败(第{attempt + 1}次): {last_err}")
+            if attempt < retries:
+                import asyncio
+                await asyncio.sleep(3)
+        print(f"[LLM] 最终失败: {last_err}")
         return None
 
     async def chat(self, messages, json_mode=False, temperature=0.7) -> str | None:
@@ -192,9 +204,24 @@ class LLMService:
 
         return parsed
 
-    async def polish_note(self, content: str) -> str | None:
-        """笔记一键润色整理 — 优化表达与结构，不改原意不丢内容"""
-        prompt = f"""你是一个中文写作润色助手。请润色整理下面这篇笔记。要求：
+    async def polish_note(self, content: str, mode: str = "full") -> str | None:
+        """笔记润色 — full=整篇整理结构；selection=仅选中片段（严格忠于原文）"""
+        if mode == "selection":
+            # 片段润色：改格式与表达，不许动信息量。片段会被替换回原文中间，
+            # 首尾加总结句/解释会破坏与上下文的衔接
+            prompt = f"""你是一个中文文字润色助手。下面是用户从笔记中选中的一段文字，请只润色它的**格式和表达**。
+
+铁律（违反即失败）：
+1. 严格忠于原文：不添加任何原文没有的信息，不删减任何有效内容，不改变任何事实、数字、命令、路径、代码
+2. 只做：错别字/标点修正、语病理顺、表达精炼、Markdown 格式整理（如该用列表的改成列表）
+3. 代码块、命令、链接、图片引用一字不改
+4. 首尾不要添加总结句、过渡句或任何解释——片段要替换回原文中间
+5. 直接返回润色后的片段文字，不要任何说明和代码块包裹
+
+选中的片段：
+{content[:15000]}"""
+        else:
+            prompt = f"""你是一个中文写作润色助手。请润色整理下面这篇笔记。要求：
 1. 修正错别字、标点和语病，让表达更通顺精炼
 2. 优化段落与标题层级（可用 ## / ### 组织结构），让笔记更有条理
 3. **保持 Markdown 格式**：代码块、命令、链接、图片引用（![..](..)）一律原样保留，一个字符都不能改
@@ -207,7 +234,8 @@ class LLMService:
 {content[:30000]}"""
         return await self._call(
             [{"role": "user", "content": prompt}],
-            temperature=0.3, timeout=120
+            # GLM 高负载时润色要 90~180s+，超时/限流重试一次大幅提高成功率
+            temperature=0.3, timeout=180, retries=1
         )
 
     async def summarize_note(self, transcript: str, instruction: str = "",

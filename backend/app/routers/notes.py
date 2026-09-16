@@ -58,6 +58,7 @@ class CategoryCreate(BaseModel):
 
 class PolishRequest(BaseModel):
     content: str = ""
+    mode: str = "full"  # full=整篇润色 / selection=仅润色选中片段（严格忠于原文）
 
 
 @router.post("/notes/polish")
@@ -66,7 +67,9 @@ async def polish_note(req: PolishRequest):
     from app.services.llm_service import llm_service
     if not req.content.strip():
         raise HTTPException(400, "笔记内容为空")
-    result = await llm_service.polish_note(req.content)
+    if req.mode not in ("full", "selection"):
+        raise HTTPException(400, "mode 仅支持 full / selection")
+    result = await llm_service.polish_note(req.content, mode=req.mode)
     if not result or not result.strip():
         raise HTTPException(502, "润色失败，请稍后重试")
     return {"content": result.strip()}
