@@ -458,8 +458,10 @@
 .chat-clip-btn:hover, .chat-file-btn:hover { background:var(--accent-light); color:var(--accent); }
 
 /* === 消息气泡（壳由 @ant-design/x Bubble 提供） === */
-.msg { margin-bottom:14px; }
-.msg.ant-bubble { display:block; }
+/* 间距全由我们自己控制：antd 默认 margin 清零，问答对贴近、轮次间留白 */
+.msg.ant-bubble { display:block; margin:0 !important; }
+.msg.user.ant-bubble { margin-bottom:4px !important; }
+.msg.assistant.ant-bubble { margin-bottom:22px !important; }
 .msg .msg-avatar {
   width:30px; height:30px; border-radius:var(--radius); display:flex; align-items:center;
   justify-content:center; flex-shrink:0; margin-top:1px;
@@ -467,8 +469,13 @@
 .msg .msg-avatar.user-avatar { background:var(--accent); color:#fff; }
 .msg .msg-avatar.assistant-avatar { background:var(--accent-light); color:var(--accent); }
 
-/* AI 消息：borderless 文档式 —— 排版优先，无气泡壳 */
-.msg.assistant .ant-bubble-content { background:transparent !important; border-radius:0; padding:0; }
+/* AI 消息：白卡片浮于米白背景（borderless 变体 + ICE 卡片层，有明确边界） */
+.msg.assistant .ant-bubble-content {
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:4px 14px 14px 14px;
+  padding:10px 16px !important;
+}
 .msg-body {
   font-size:13.5px; line-height:1.85; color:var(--text);
 }
@@ -500,10 +507,12 @@
 .msg.user .msg-body code { background:rgba(232,85,58,.12); color:var(--accent-dark); }
 .msg.user .msg-body h1,.msg.user .msg-body h2,.msg.user .msg-body h3 { color:var(--accent-dark); }
 
-/* hover 操作栏：复制 / 重新生成 / 删除 */
+/* hover 操作栏：复制 / 重新生成 / 删除。
+   零高度 + overflow 可见：不占布局空间（否则透明状态也撑出 26px 空隙） */
 .msg-actions {
-  display:flex; align-items:center; gap:3px; margin-top:4px;
-  opacity:0; transition:opacity var(--duration-fast) var(--ease); min-height:22px;
+  display:flex; align-items:center; gap:3px;
+  height:0; overflow:visible; padding-top:4px;
+  opacity:0; transition:opacity var(--duration-fast) var(--ease);
 }
 .msg:hover .msg-actions { opacity:1; }
 .msg-actions.end { justify-content:flex-end; }
@@ -624,14 +633,17 @@
 }
 .chat-read-btn:hover, .chat-read-btn.active { color:var(--accent); border-color:var(--accent); background:var(--accent-light); }
 
-/* === 一次性标记（会话级书签） === */
+/* === 一次性标记（会话级书签）——绝对定位悬浮，不占消息流布局
+   （原先内联在气泡后，透明状态也撑出 22px 空隙） */
+.msg-row-wrap { position:relative; }
 .chat-bookmark-btn {
+  position:absolute; right:6px; top:4px; z-index:5;
   display:inline-flex; align-items:center; justify-content:center;
   width:22px; height:22px; border:none; border-radius:4px;
   background:none; color:var(--text-light); cursor:pointer;
   opacity:0; transition:all var(--duration-fast) var(--ease);
 }
-.msg:hover .chat-bookmark-btn { opacity:.6; }
+.msg-row-wrap:hover .chat-bookmark-btn { opacity:.6; }
 .chat-bookmark-btn:hover { opacity:1; color:#eab308; background:rgba(234,179,8,.1); }
 .chat-bookmark-btn.active { opacity:1; color:#eab308; }
 .chat-bookmark-nav {
