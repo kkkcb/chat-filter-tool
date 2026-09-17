@@ -1,6 +1,33 @@
-.pkb-view-content .note-diagram {
-  margin:16px 0 8px; padding:16px; overflow-x:auto;
-  border:1px solid var(--border); border-radius:10px;
-  background:var(--bg-card); text-align:center;
+/* 笔记阅读排版：github-markdown-css 提供 GitHub 级排版基线（.markdown-body），
+   这里只做 ICE 适配——字号贴合应用、保留主题色、修组件间冲突。 */
+
+/* markdown-body 自带 max-width:980px + 45px padding（官方 README 推荐值），
+   弹窗里不需要，由布局自身控制宽度 */
+.pkb-view-content.markdown-body {
+  max-width: none; min-width: 0; padding: 0;
+  font-family: var(--font); font-size: 13.5px; color: var(--text);
+  background: transparent;
 }
-.pkb-view-content .note-diagram svg { display:block; max-width:100%; height:auto; margin:auto; }
+
+/* ICE 代码块壳（复制按钮浮层）优先于 github 的 pre 样式 */
+.pkb-view-content.markdown-body .code-block { position: relative; }
+.pkb-view-content.markdown-body pre.hljs {
+  background: var(--bg-muted); border-radius: 8px; padding: 12px 14px; margin: 12px 0;
+}
+.pkb-view-content.markdown-body pre.hljs code {
+  background: none; padding: 0; font-size: 12.5px; white-space: pre;
+}
+
+/* KaTeX 公式块横向滚动（超宽公式在窄弹窗里不撑破布局） */
+.pkb-view-content.markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+
+/* Mermaid 图表面板保持 ICE 卡片外观（github 样式不含此容器） */
+.pkb-view-content.markdown-body .note-diagram {
+  margin: 16px 0 8px; padding: 16px; overflow-x: auto;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-card); text-align: center;
+}
+.pkb-view-content.markdown-body .note-diagram svg { display: block; max-width: 100%; height: auto; margin: auto; }
+
+/* 行内代码底色回到 ICE 的米白系（github 默认灰蓝在暖色主题里突兀） */
+.pkb-view-content.markdown-body code { background: var(--bg-muted); }
