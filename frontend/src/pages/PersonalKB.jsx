@@ -8,6 +8,7 @@ import { getNote, uploadNoteImage, polishNote, getNoteSource } from '../api/note
 import { diffTexts } from '../utils/diff'
 import { analyzeVision } from '../api/vision'
 import { renderMarkdown, extractOutline } from '../utils/markdown'
+import NoteMarkdown from '../components/NoteMarkdown'
 import { toast } from '../components/Toast'
 import { confirmDialog } from '../components/Confirm'
 import KbApiModal from '../components/KbApiModal'
@@ -808,11 +809,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
             {loadingNote || note?.content == null ? (
               <div className="pkb-view-loading"><Loader2 size={18} strokeWidth={2.5} className="wx-spin" /> 加载正文...</div>
             ) : (
-              <div
-                className="pkb-view-content"
-                onClick={(e) => { if (e.target.tagName === 'IMG') setLightbox(e.target.src) }}
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content) }}
-              />
+              <NoteMarkdown content={note.content} onImageOpen={setLightbox} />
             )}
             </div>
           </div>

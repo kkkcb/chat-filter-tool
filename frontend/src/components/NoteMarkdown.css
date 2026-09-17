@@ -1,0 +1,6 @@
+.pkb-view-content .note-diagram {
+  margin:16px 0 8px; padding:16px; overflow-x:auto;
+  border:1px solid var(--border); border-radius:10px;
+  background:var(--bg-card); text-align:center;
+}
+.pkb-view-content .note-diagram svg { display:block; max-width:100%; height:auto; margin:auto; }
