@@ -518,13 +518,12 @@
 
 .msg-placeholder { color:var(--text-light); animation:pulse 1s infinite; }
 
-/* 模型工具调用痕迹（联网抓取） */
-.msg-tools { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
-.msg-tool-badge {
-  display:inline-flex; align-items:center; gap:4px; max-width:100%;
-  font-size:10.5px; color:var(--text-muted); background:var(--bg-muted);
-  border:1px solid var(--border); padding:2px 8px; border-radius:9px;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+/* 思维链（@ant-design/x ThoughtChain）适配 ICE 视觉 */
+.msg-thought-chain { margin-bottom:8px; font-size:12px; }
+.msg-thought-chain .tc-reasoning {
+  white-space:pre-wrap; word-break:break-word; color:var(--text-muted);
+  font-size:11.5px; line-height:1.7; max-height:260px; overflow-y:auto;
+  background:var(--bg-muted); border-radius:6px; padding:8px 10px;
 }
 
 /* === 思考过程 === */

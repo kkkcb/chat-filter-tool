@@ -6,6 +6,7 @@ import {
   Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion, Paperclip, Globe,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
+import { ThoughtChain } from '@ant-design/x'
 import { useVisionStore } from '../stores/visionStore'
 import { useMaterialStore } from '../stores/materialStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -1029,7 +1030,6 @@ function ConvItem({ conv, index, isActive, onSelect, onRename, onDelete, onDragR
 /* === 消息气泡（支持流式 + 思考过程 + 双击查看原始数据 + 单句删除） === */
 const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete, isLast }) {
   const isUser = msg.role === 'user'
-  const [showReasoning, setShowReasoning] = useState(true)
   const [bubbleCopied, setBubbleCopied] = useState(false)
 
   if (msg.typing) {
@@ -1109,28 +1109,29 @@ const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, o
         >
           {msg.image && <img className="vision-image" src={msg.image} alt="用户上传" />}
 
-          {/* 模型本轮调用的抓取工具痕迹（联网抓取开启时） */}
-          {!isUser && msg.tools?.length > 0 && (
-            <div className="msg-tools">
-              {msg.tools.map((t, i) => (
-                <span key={i} className="msg-tool-badge" title={t.url}>
-                  <Globe size={10} strokeWidth={2.2} /> {t.url || t.name}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {!isUser && msg.reasoning && (
-            <div className={`reasoning-block ${showReasoning ? 'expanded' : 'collapsed'}`}>
-              <div className="reasoning-header" onClick={() => setShowReasoning(!showReasoning)}>
-                <Brain size={13} strokeWidth={2} />
-                <span>思考过程</span>
-                {msg.streaming && <Loader2 size={12} strokeWidth={2.5} className="spin-icon" />}
-                <ChevronDown size={13} strokeWidth={2} className={`reasoning-chevron ${showReasoning ? 'rotated' : ''}`} />
-              </div>
-              {showReasoning && <div className="reasoning-content">{msg.reasoning}</div>}
-            </div>
-          )}
+          {/* 思维链（@ant-design/x ThoughtChain 组件）：工具抓取 + 思考过程 */}
+          {!isUser && (() => {
+            const items = []
+            ;(msg.tools || []).forEach((t, ti) => items.push({
+              key: `tool-${ti}`,
+              icon: <Globe size={13} strokeWidth={2} />,
+              title: '联网抓取',
+              description: t.url || t.name,
+              status: 'success',
+            }))
+            if (msg.reasoning) items.push({
+              key: 'reasoning',
+              icon: <Brain size={13} strokeWidth={2} />,
+              title: msg.streaming ? '思考中…' : '思考过程',
+              status: msg.streaming ? 'loading' : 'success',
+              collapsible: true,
+              content: <div className="tc-reasoning">{msg.reasoning}</div>,
+            })
+            return items.length > 0 ? (
+              <ThoughtChain className="msg-thought-chain" items={items} size="small"
+                collapsible={{ defaultExpandedKeys: [] }} />
+            ) : null
+          })()}
 
           {msg.content ? (
             isUser ? (
