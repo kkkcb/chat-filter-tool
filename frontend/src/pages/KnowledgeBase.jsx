@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion, Paperclip, Globe,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
-import { ThoughtChain } from '@ant-design/x'
+import { ThoughtChain, Bubble } from '@ant-design/x'
 import { useVisionStore } from '../stores/visionStore'
 import { useMaterialStore } from '../stores/materialStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -1032,17 +1032,22 @@ const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, o
   const isUser = msg.role === 'user'
   const [bubbleCopied, setBubbleCopied] = useState(false)
 
+  // 头像 / 内容 / 操作栏三段渲染器 —— 壳由 @ant-design/x Bubble 提供
+  // （placement 左右对齐、variant 气泡形态、加载态都是组件能力，不再手搓）
+  const avatar = (
+    <div className={`msg-avatar ${isUser ? 'user-avatar' : 'assistant-avatar'}`}>
+      {isUser ? <User size={18} strokeWidth={2} /> : <Bot size={18} strokeWidth={2} />}
+    </div>
+  )
+
   if (msg.typing) {
     return (
-      <div className="msg assistant">
-        <div className="msg-avatar assistant-avatar"><Bot size={18} strokeWidth={2} /></div>
-        <div className="msg-content">
-          <div className="msg-name">助手</div>
-          <div className="msg-body">
-            <div className="typing-indicator"><span></span><span></span><span></span></div>
-          </div>
-        </div>
-      </div>
+      <Bubble className="msg assistant" placement="start" variant="borderless"
+        avatar={avatar} content="" loading
+        loadingRender={() => (
+          <div className="msg-body"><div className="typing-indicator"><span></span><span></span><span></span></div></div>
+        )}
+      />
     )
   }
 
@@ -1053,130 +1058,135 @@ const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, o
     }
   }
 
-  return (
-    <div className={`msg ${isUser ? 'user' : 'assistant'}`}>
-      <div className={`msg-avatar ${isUser ? 'user-avatar' : 'assistant-avatar'}`}>
-        {isUser ? <User size={18} strokeWidth={2} /> : <Bot size={18} strokeWidth={2} />}
-      </div>
-      <div className="msg-content">
-        <div className="msg-name">
-          {isUser ? '我' : '助手'}
-          {!isUser && msg.streaming && <span className="msg-streaming-badge">生成中...</span>}
-          {!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) && (
-            <span className="msg-detail-hint" title="双击查看原始请求/返回">双击查看详情</span>
-          )}
-          {/* 单句删除：消息已入库（有服务端 id）且不在流式生成中才可删 */}
-          {msg.messageId && !msg.streaming && !msg.typing && onDelete && (
-            <button
-              className="msg-delete-btn"
-              title="删除这条消息"
-              onClick={onDelete}
-            >
-              <Trash2 size={11} strokeWidth={2} />
-            </button>
-          )}
-          {/* 重新生成：最后一条 AI 回复专属（中止的消息已有块内按钮）*/}
-          {!isUser && isLast && !msg.streaming && !msg.typing && !msg.aborted && msg.content && onRetry && (
-            <button
-              className="msg-retry-btn"
-              title="重新生成这条回复"
-              onClick={(e) => { e.stopPropagation(); onRetry() }}
-            >
-              <RotateCcw size={11} strokeWidth={2} />
-            </button>
-          )}
-          {/* 复制正文（不含思考过程）；删除按钮带 margin-left:auto 负责右推 */}
-          {msg.content && !msg.streaming && !msg.typing && (
-            <button
-              className={`msg-copy-btn ${bubbleCopied ? 'copied' : ''}`}
-              title={isUser ? '复制这条消息' : '复制回复正文（不含思考过程）'}
-              onClick={() => {
-                copyText(msg.content).then((ok) => {
-                  if (!ok) return toast('复制失败', 'error')
-                  setBubbleCopied(true)
-                  setTimeout(() => setBubbleCopied(false), 1500)
-                })
-              }}
-            >
-              {bubbleCopied ? <Check size={11} strokeWidth={2.2} /> : <Copy size={11} strokeWidth={2} />}
-            </button>
-          )}
+  const contentRender = () => (
+    <div
+      className="msg-body"
+      onDoubleClick={handleDoubleClick}
+      style={!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) ? { cursor: 'pointer' } : {}}
+    >
+      {msg.image && <img className="vision-image" src={msg.image} alt="用户上传" />}
+
+      {/* 思维链（@ant-design/x ThoughtChain 组件）：工具抓取 + 思考过程 */}
+      {!isUser && (() => {
+        const items = []
+        ;(msg.tools || []).forEach((t, ti) => items.push({
+          key: `tool-${ti}`,
+          icon: <Globe size={13} strokeWidth={2} />,
+          title: '联网抓取',
+          description: t.url || t.name,
+          status: 'success',
+        }))
+        if (msg.reasoning) items.push({
+          key: 'reasoning',
+          icon: <Brain size={13} strokeWidth={2} />,
+          title: msg.streaming ? '思考中…' : '思考过程',
+          status: msg.streaming ? 'loading' : 'success',
+          collapsible: true,
+          content: <div className="tc-reasoning">{msg.reasoning}</div>,
+        })
+        return items.length > 0 ? (
+          <ThoughtChain className="msg-thought-chain" items={items} size="small"
+            collapsible={{ defaultExpandedKeys: [] }} />
+        ) : null
+      })()}
+
+      {msg.content ? (
+        isUser ? (
+          // 用户消息：禁 HTML 透传，尖括号内容原样显示（防 <img>/<script> 被吞）
+          <div dangerouslySetInnerHTML={{ __html: renderUserText(msg.content) }} />
+        ) : (
+          <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+        )
+      ) : !msg.reasoning ? (
+        <span className="msg-placeholder">...</span>
+      ) : null}
+
+      {msg.streaming && msg.content && <span className="stream-cursor" />}
+      {!isUser && msg.streaming && <span className="msg-streaming-badge">生成中...</span>}
+
+      {msg.aborted && (
+        <div className="msg-aborted">
+          <span>已中止</span>
+          <button className="msg-retry-btn" onClick={onRetry}>
+            <RotateCcw size={13} strokeWidth={2} /> 重新生成
+          </button>
         </div>
-        <div
-          className="msg-body"
-          onDoubleClick={handleDoubleClick}
-          style={!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) ? { cursor: 'pointer' } : {}}
-        >
-          {msg.image && <img className="vision-image" src={msg.image} alt="用户上传" />}
+      )}
 
-          {/* 思维链（@ant-design/x ThoughtChain 组件）：工具抓取 + 思考过程 */}
-          {!isUser && (() => {
-            const items = []
-            ;(msg.tools || []).forEach((t, ti) => items.push({
-              key: `tool-${ti}`,
-              icon: <Globe size={13} strokeWidth={2} />,
-              title: '联网抓取',
-              description: t.url || t.name,
-              status: 'success',
-            }))
-            if (msg.reasoning) items.push({
-              key: 'reasoning',
-              icon: <Brain size={13} strokeWidth={2} />,
-              title: msg.streaming ? '思考中…' : '思考过程',
-              status: msg.streaming ? 'loading' : 'success',
-              collapsible: true,
-              content: <div className="tc-reasoning">{msg.reasoning}</div>,
-            })
-            return items.length > 0 ? (
-              <ThoughtChain className="msg-thought-chain" items={items} size="small"
-                collapsible={{ defaultExpandedKeys: [] }} />
-            ) : null
-          })()}
-
-          {msg.content ? (
-            isUser ? (
-              // 用户消息：禁 HTML 透传，尖括号内容原样显示（防 <img>/<script> 被吞）
-              <div dangerouslySetInnerHTML={{ __html: renderUserText(msg.content) }} />
-            ) : (
-              <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
-            )
-          ) : !msg.reasoning ? (
-            <span className="msg-placeholder">...</span>
-          ) : null}
-
-          {msg.streaming && msg.content && <span className="stream-cursor" />}
-
-          {msg.aborted && (
-            <div className="msg-aborted">
-              <span>已中止</span>
-              <button className="msg-retry-btn" onClick={onRetry}>
-                <RotateCcw size={13} strokeWidth={2} /> 重新生成
-              </button>
-            </div>
-          )}
-
-          {msg.action === 'confirm_save' && !msg.saveState && (
-            <div className="save-actions">
-              <button className="save-btn save-yes" onClick={() => onConfirmSave(index)}>
-                <Check size={15} strokeWidth={2.2} /> 保存
-              </button>
-              <button className="save-btn save-no" onClick={() => onDismissSave(index)}>不保存</button>
-            </div>
-          )}
-          {msg.saveState === 'saving' && (
-            <div className="save-status saving"><Loader2 size={14} strokeWidth={2.5} className="spin-icon" /> 保存中...</div>
-          )}
-          {msg.saveState === 'saved' && (
-            <div className="save-status saved"><Check size={14} strokeWidth={2.5} /> 已收藏</div>
-          )}
-          {msg.saveState === 'error' && (
-            <div className="save-status error">
-              <AlertCircle size={14} strokeWidth={2} /> 保存失败：{msg.saveError}
-              <button className="save-btn save-retry" onClick={() => onConfirmSave(index)}>重试</button>
-            </div>
-          )}
+      {msg.action === 'confirm_save' && !msg.saveState && (
+        <div className="save-actions">
+          <button className="save-btn save-yes" onClick={() => onConfirmSave(index)}>
+            <Check size={15} strokeWidth={2.2} /> 保存
+          </button>
+          <button className="save-btn save-no" onClick={() => onDismissSave(index)}>不保存</button>
         </div>
-      </div>
+      )}
+      {msg.saveState === 'saving' && (
+        <div className="save-status saving"><Loader2 size={14} strokeWidth={2.5} className="spin-icon" /> 保存中...</div>
+      )}
+      {msg.saveState === 'saved' && (
+        <div className="save-status saved"><Check size={14} strokeWidth={2.5} /> 已收藏</div>
+      )}
+      {msg.saveState === 'error' && (
+        <div className="save-status error">
+          <AlertCircle size={14} strokeWidth={2} /> 保存失败：{msg.saveError}
+          <button className="save-btn save-retry" onClick={() => onConfirmSave(index)}>重试</button>
+        </div>
+      )}
     </div>
+  )
+
+  // hover 操作栏：复制 / 重新生成 / 删除（+ 双击详情提示）
+  const hasActions =
+    (msg.content && !msg.streaming) ||
+    (msg.messageId && !msg.streaming && onDelete) ||
+    (!isUser && isLast && !msg.streaming && !msg.aborted && msg.content && onRetry)
+  const footer = hasActions ? () => (
+    <div className={`msg-actions ${isUser ? 'end' : ''}`}>
+      {!isUser && (msg.rawRequest || msg.rawResponse || msg.messageId) && (
+        <span className="msg-detail-hint" title="双击查看原始请求/返回">双击查看详情</span>
+      )}
+      {/* 复制正文（不含思考过程）*/}
+      {msg.content && !msg.streaming && (
+        <button
+          className={`msg-copy-btn ${bubbleCopied ? 'copied' : ''}`}
+          title={isUser ? '复制这条消息' : '复制回复正文（不含思考过程）'}
+          onClick={() => {
+            copyText(msg.content).then((ok) => {
+              if (!ok) return toast('复制失败', 'error')
+              setBubbleCopied(true)
+              setTimeout(() => setBubbleCopied(false), 1500)
+            })
+          }}
+        >
+          {bubbleCopied ? <Check size={11} strokeWidth={2.2} /> : <Copy size={11} strokeWidth={2} />}
+        </button>
+      )}
+      {/* 重新生成：最后一条 AI 回复专属（中止的消息已有块内按钮）*/}
+      {!isUser && isLast && !msg.streaming && !msg.aborted && msg.content && onRetry && (
+        <button className="msg-retry-btn" title="重新生成这条回复"
+          onClick={(e) => { e.stopPropagation(); onRetry() }}>
+          <RotateCcw size={11} strokeWidth={2} />
+        </button>
+      )}
+      {/* 单句删除：消息已入库（有服务端 id）且不在流式生成中才可删 */}
+      {msg.messageId && !msg.streaming && onDelete && (
+        <button className="msg-delete-btn" title="删除这条消息" onClick={onDelete}>
+          <Trash2 size={11} strokeWidth={2} />
+        </button>
+      )}
+    </div>
+  ) : undefined
+
+  return (
+    <Bubble
+      className={`msg ${isUser ? 'user' : 'assistant'}`}
+      placement={isUser ? 'end' : 'start'}
+      variant={isUser ? 'filled' : 'borderless'}
+      avatar={avatar}
+      content={msg.content}
+      contentRender={contentRender}
+      footer={footer}
+    />
   )
 })

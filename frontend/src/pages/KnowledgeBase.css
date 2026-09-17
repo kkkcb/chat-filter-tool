@@ -82,10 +82,9 @@
 /* === 单句删除按钮（常显低调，悬停强调） === */
 .msg-delete-btn {
   display:inline-flex; align-items:center; justify-content:center;
-  width:20px; height:20px; padding:0; border:none; border-radius:4px;
+  width:22px; height:22px; padding:0; border:none; border-radius:4px;
   background:var(--bg-muted); color:var(--text-light); cursor:pointer;
   opacity:.45; transition:all var(--duration-fast) var(--ease);
-  margin-left:auto;
 }
 .msg-delete-btn:hover { opacity:1; background:rgba(239,68,68,.1); color:var(--danger); }
 
@@ -494,20 +493,58 @@
 .chat-send:hover { background:var(--accent-dark); }
 .chat-send:disabled { background:var(--text-light); cursor:not-allowed; }
 
-/* === 消息气泡 === */
-.msg { margin-bottom:16px; display:flex; gap:10px; animation:msgIn .3s var(--ease); }
-@keyframes msgIn {
-  from { opacity:0; transform:translateY(8px); }
-  to { opacity:1; transform:translateY(0); }
-}
-.msg-avatar {
+/* === 消息气泡（壳由 @ant-design/x Bubble 提供） === */
+.msg { margin-bottom:14px; }
+.msg.ant-bubble { display:block; }
+.msg .msg-avatar {
   width:30px; height:30px; border-radius:var(--radius); display:flex; align-items:center;
-  justify-content:center; flex-shrink:0;
+  justify-content:center; flex-shrink:0; margin-top:1px;
 }
-.msg-avatar.user-avatar { background:var(--accent); color:#fff; }
-.msg-avatar.assistant-avatar { background:var(--accent-light); color:var(--accent); }
-.msg-content { flex:1; padding-top:1px; min-width:0; }
-.msg-name { font-size:11px; font-weight:600; margin-bottom:3px; color:var(--text-muted); display:flex; align-items:center; gap:6px; }
+.msg .msg-avatar.user-avatar { background:var(--accent); color:#fff; }
+.msg .msg-avatar.assistant-avatar { background:var(--accent-light); color:var(--accent); }
+
+/* AI 消息：borderless 文档式 —— 排版优先，无气泡壳 */
+.msg.assistant .ant-bubble-content { background:transparent !important; border-radius:0; padding:0; }
+.msg-body {
+  font-size:13.5px; line-height:1.85; color:var(--text);
+}
+.msg-body h1,.msg-body h2,.msg-body h3 { margin:10px 0 5px; font-size:15px; font-weight:700; }
+.msg-body h3:first-child { margin-top:0; }
+.msg-body ul,.msg-body ol { padding-left:18px; margin:4px 0; }
+.msg-body li { margin-bottom:2px; }
+.msg-body a { color:var(--accent); text-decoration:none; }
+.msg-body a:hover { text-decoration:underline; }
+.msg-body strong { font-weight:700; }
+.msg-body code { background:var(--bg-muted); padding:2px 5px; border-radius:3px; font-family:var(--font-mono); font-size:12px; }
+.msg-body img { max-width:100%; border-radius:var(--radius); margin:6px 0; }
+.msg-body table { border-collapse:collapse; margin:8px 0; width:100%; font-size:12px; }
+.msg-body th, .msg-body td { border:1px solid var(--border-dark); padding:5px 10px; text-align:left; }
+.msg-body th { background:var(--bg-muted); font-weight:600; white-space:nowrap; }
+.msg-body tr:nth-child(even) td { background:var(--bg-muted); }
+
+/* 用户消息：右对齐柔和着色气泡（filled 变体打底，ICE 主题色染色） */
+.msg.user .ant-bubble-content {
+  background:var(--accent-light) !important;
+  color:var(--accent-dark);
+  border-radius:14px 14px 4px 14px !important;
+  padding:9px 14px !important;
+  max-width:78%;
+  font-size:13.5px; line-height:1.75;
+}
+.msg.user .msg-body { color:var(--accent-dark); }
+.msg.user .msg-body a { color:var(--accent-dark); text-decoration:underline; text-decoration-color:rgba(232,85,58,.4); word-break:break-all; }
+.msg.user .msg-body code { background:rgba(232,85,58,.12); color:var(--accent-dark); }
+.msg.user .msg-body h1,.msg.user .msg-body h2,.msg.user .msg-body h3 { color:var(--accent-dark); }
+
+/* hover 操作栏：复制 / 重新生成 / 删除 */
+.msg-actions {
+  display:flex; align-items:center; gap:3px; margin-top:4px;
+  opacity:0; transition:opacity var(--duration-fast) var(--ease); min-height:22px;
+}
+.msg:hover .msg-actions { opacity:1; }
+.msg-actions.end { justify-content:flex-end; }
+.msg-actions .msg-detail-hint { margin-right:auto; font-size:10px; font-weight:400; color:var(--text-light); }
+.msg-actions.end .msg-detail-hint { margin-right:0; margin-left:auto; }
 
 .msg-streaming-badge {
   font-size:10px; font-weight:500; color:var(--accent);
@@ -576,29 +613,6 @@
   justify-content:center; transition:background var(--duration-fast) var(--ease); flex-shrink:0;
 }
 .chat-abort:hover { opacity:.85; }
-.msg-body {
-  font-size:13px; line-height:1.7; color:var(--text);
-  background:var(--bg-muted); padding:10px 14px;
-  border-radius:0 var(--radius) var(--radius) var(--radius);
-  border:1px solid var(--border);
-}
-.msg.user .msg-body { background:var(--accent); color:#fff; border:none; border-radius:var(--radius) var(--radius) 0 var(--radius); }
-.msg.user .msg-body a { color:#fff; text-decoration:underline; text-decoration-color:rgba(255,255,255,.5); word-break:break-all; }
-.msg.user .msg-body a:hover { text-decoration-color:#fff; }
-.msg.user .msg-body code { background:rgba(255,255,255,.2); color:#fff; }
-.msg-body h1,.msg-body h2,.msg-body h3 { margin:8px 0 4px; font-size:14px; font-weight:700; }
-.msg-body h3:first-child { margin-top:0; }
-.msg-body ul,.msg-body ol { padding-left:18px; margin:4px 0; }
-.msg-body li { margin-bottom:2px; }
-.msg-body a { color:var(--accent); text-decoration:none; }
-.msg-body a:hover { text-decoration:underline; }
-.msg-body strong { font-weight:700; }
-.msg-body code { background:var(--bg-card); padding:2px 5px; border-radius:3px; font-family:var(--font-mono); font-size:12px; }
-.msg-body img { max-width:100%; border-radius:var(--radius); margin:6px 0; }
-.msg-body table { border-collapse:collapse; margin:8px 0; width:100%; font-size:12px; }
-.msg-body th, .msg-body td { border:1px solid var(--border-dark); padding:5px 10px; text-align:left; }
-.msg-body th { background:var(--bg-muted); font-weight:600; white-space:nowrap; }
-.msg-body tr:nth-child(even) td { background:var(--bg-muted); }
 .msg-body blockquote {
   margin:8px 0; padding:6px 12px;
   border-left:3px solid var(--accent); background:var(--accent-light);
