@@ -1,5 +1,8 @@
-/* 笔记阅读排版：github-markdown-css 提供 GitHub 级排版基线（.markdown-body），
-   这里只做 ICE 适配——字号贴合应用、保留主题色、修组件间冲突。 */
+/* 笔记阅读排版：github-markdown-css 提供 GitHub 级排版基线（.markdown-body）。
+   本文件是唯一的 ICE 适配层——PersonalKB.css 的旧排版规则已删除，
+   修改笔记阅读样式只动这里。
+   注意选择器都用 .pkb-view-content.markdown-body 双 class（优先级 0,2,x），
+   稳定压过库的 .markdown-body 单 class，不再依赖打包顺序。 */
 
 /* markdown-body 自带 max-width:980px + 45px padding（官方 README 推荐值），
    弹窗里不需要，由布局自身控制宽度 */
@@ -9,14 +12,45 @@
   background: transparent;
 }
 
-/* ICE 代码块壳（复制按钮浮层）优先于 github 的 pre 样式 */
+/* 标题层级交给主题（h1 2em / h2 1.5em / h3 1.25em 递减），只收敛边距 */
+.pkb-view-content.markdown-body h1,
+.pkb-view-content.markdown-body h2,
+.pkb-view-content.markdown-body h3 { margin: 1.4em 0 .6em; }
+.pkb-view-content.markdown-body h1:first-child,
+.pkb-view-content.markdown-body h2:first-child,
+.pkb-view-content.markdown-body h3:first-child { margin-top: 0; }
+
+/* 链接回 ICE 主题色（github 默认 #0969da 蓝与全局暖色系冲突） */
+.pkb-view-content.markdown-body a { color: var(--accent); text-decoration: none; }
+.pkb-view-content.markdown-body a:hover { text-decoration: underline; }
+
+/* 引用块保持 ICE 样式（主题橙左边框 + 浅橙底，github 的中性灰弱） */
+.pkb-view-content.markdown-body blockquote {
+  margin: 12px 0; padding: 6px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-light); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-secondary);
+}
+
+/* 行内代码底色回到 ICE 的米白系（github 默认灰蓝在暖色主题里突兀） */
+.pkb-view-content.markdown-body code { background: var(--bg-muted); }
+.pkb-view-content.markdown-body pre code { background: none; }
+
+/* ICE 代码块壳（复制按钮浮层）。pre 背景由 global.css 的 hljs 主题
+   （#f6f8fa !important）提供，这里不重复声明 */
 .pkb-view-content.markdown-body .code-block { position: relative; }
-.pkb-view-content.markdown-body pre.hljs {
-  background: var(--bg-muted); border-radius: 8px; padding: 12px 14px; margin: 12px 0;
-}
+.pkb-view-content.markdown-body pre.hljs { border-radius: 8px; margin: 12px 0; }
 .pkb-view-content.markdown-body pre.hljs code {
-  background: none; padding: 0; font-size: 12.5px; white-space: pre;
+  padding: 0; font-size: 12.5px; white-space: pre;
 }
+
+/* 笔记图片：自适应不撑爆 + 可点击放大（从 PersonalKB.css 迁入） */
+.pkb-view-content.markdown-body img {
+  max-width: 100%; height: auto; display: block; margin: 12px 0;
+  border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+.pkb-view-content.markdown-body img:hover { opacity: .92; }
 
 /* KaTeX 公式块横向滚动（超宽公式在窄弹窗里不撑破布局） */
 .pkb-view-content.markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
@@ -28,6 +62,3 @@
   background: var(--bg-card); text-align: center;
 }
 .pkb-view-content.markdown-body .note-diagram svg { display: block; max-width: 100%; height: auto; margin: auto; }
-
-/* 行内代码底色回到 ICE 的米白系（github 默认灰蓝在暖色主题里突兀） */
-.pkb-view-content.markdown-body code { background: var(--bg-muted); }

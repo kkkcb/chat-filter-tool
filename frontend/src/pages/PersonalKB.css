@@ -264,35 +264,12 @@
 
 .pkb-view-title { font-size:19px; font-weight:700; color:var(--text); line-height:1.5; margin-bottom:10px; }
 .pkb-view-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
-.pkb-view-content { font-size:13.5px; line-height:1.85; color:var(--text); }
-/* 笔记图片：自适应不撑爆 + 可点击放大 */
-.pkb-view-content img {
-  max-width:100%; height:auto; display:block; margin:10px 0;
-  border-radius:8px; border:1px solid var(--border); cursor:zoom-in;
-  transition:opacity var(--duration-fast) var(--ease);
-}
-.pkb-view-content img:hover { opacity:.92; }
+/* 笔记正文排版已整体迁往 components/NoteMarkdown.css（github-markdown-css
+   主题 + ICE 适配层）——旧的双轨规则已删，阅读样式只在那里改 */
 .pkb-view-loading {
   display:flex; align-items:center; justify-content:center; gap:8px;
   padding:40px 0; color:var(--text-muted); font-size:13px;
 }
-.pkb-view-content h1, .pkb-view-content h2, .pkb-view-content h3 { margin:14px 0 8px; font-size:15px; font-weight:700; }
-.pkb-view-content h1:first-child, .pkb-view-content h2:first-child, .pkb-view-content h3:first-child { margin-top:0; }
-.pkb-view-content p { margin-bottom:9px; }
-.pkb-view-content ul, .pkb-view-content ol { padding-left:20px; margin:6px 0; }
-.pkb-view-content li { margin-bottom:4px; }
-.pkb-view-content code { background:var(--bg-muted); padding:2px 5px; border-radius:3px; font-family:var(--font-mono); font-size:12px; }
-.pkb-view-content pre { background:var(--bg-muted); padding:12px 14px; border-radius:var(--radius); overflow-x:auto; margin:10px 0; }
-.pkb-view-content pre code { background:none; padding:0; }
-.pkb-view-content blockquote {
-  margin:10px 0; padding:6px 14px; border-left:3px solid var(--accent);
-  background:var(--accent-light); border-radius:0 var(--radius-sm) var(--radius-sm) 0;
-  color:var(--text-secondary);
-}
-.pkb-view-content table { border-collapse:collapse; margin:10px 0; width:100%; font-size:12.5px; }
-.pkb-view-content th, .pkb-view-content td { border:1px solid var(--border-dark); padding:6px 10px; text-align:left; }
-.pkb-view-content th { background:var(--bg-muted); font-weight:600; }
-.pkb-view-content tr:nth-child(even) td { background:var(--bg-muted); }
 
 /* === 编辑器 === */
 .pkb-editor { display:flex; flex-direction:column; overflow:hidden; padding:0; }
