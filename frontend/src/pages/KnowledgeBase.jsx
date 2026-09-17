@@ -3,10 +3,10 @@ import {
   ImagePlus, Send, Bot, User, X,
   FileText, Type, Palette, AlertCircle, BarChart3, TrendingUp,
   Check, Copy, Loader2, Sparkles, MessageCircle, Square, RotateCcw, Brain, ChevronDown,
-  Plus, Trash2, Pencil, GripVertical, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion, Paperclip, Globe,
+  Plus, Trash2, History, Code2, ArrowDown, NotebookPen, BookOpen, Maximize2, Minimize2, Bookmark, MessageCircleQuestion, Paperclip, Globe,
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
-import { ThoughtChain, Bubble } from '@ant-design/x'
+import { ThoughtChain, Bubble, Conversations } from '@ant-design/x'
 import { useVisionStore } from '../stores/visionStore'
 import { useMaterialStore } from '../stores/materialStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -152,6 +152,43 @@ export default function KnowledgeBase() {
         setConvNotes(notes)
       }
     } catch { toast('获取笔记失败', 'error') }
+  }
+
+  // === 会话列表操作（@ant-design/x Conversations 组件的菜单/重命名） ===
+  const [renamingId, setRenamingId] = useState(null)
+  const [renameVal, setRenameVal] = useState('')
+
+  const commitRename = () => {
+    if (renamingId == null) return
+    const v = renameVal.trim()
+    const conv = conversations.find(c => c.id === renamingId)
+    if (v && conv && v !== conv.title) renameConversation(renamingId, v)
+    setRenamingId(null)
+  }
+
+  const moveConv = (id, dir) => {
+    const ids = conversations.map(c => c.id)
+    const i = ids.indexOf(id)
+    const j = i + dir
+    if (i === -1 || j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    reorder(ids)
+  }
+
+  const handleConvMenu = async (menuKey, convId) => {
+    const conv = conversations.find(c => c.id === convId)
+    if (!conv) return
+    if (menuKey === 'rename') {
+      setRenamingId(convId); setRenameVal(conv.title)
+    } else if (menuKey === 'delete') {
+      const ok = await confirmDialog({
+        title: '删除对话',
+        message: `「${(conv.title || '').slice(0, 30)}」及其全部消息将删除，不可恢复`,
+        confirmText: '删除', danger: true,
+      })
+      if (ok) removeConversation(convId)
+    } else if (menuKey === 'up') moveConv(convId, -1)
+    else if (menuKey === 'down') moveConv(convId, 1)
   }
 
   const handleSelectConv = async (id) => {
@@ -579,19 +616,37 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           {conversations.length === 0 ? (
             <div className="ch-empty">还没有对话</div>
           ) : (
-            conversations.map((c, idx) => (
-              <ConvItem
-                key={c.id}
-                conv={c}
-                index={idx}
-                isActive={c.id === activeId}
-                onSelect={() => handleSelectConv(c.id)}
-                onRename={(title) => renameConversation(c.id, title)}
-                onDelete={() => removeConversation(c.id)}
-                onDragReorder={reorder}
-                allConvs={conversations}
-              />
-            ))
+            <Conversations
+              items={conversations.map(c => ({
+                key: String(c.id),
+                label: renamingId === c.id ? (
+                  <input
+                    className="conv-edit-input" value={renameVal} autoFocus
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename()
+                      if (e.key === 'Escape') setRenamingId(null)
+                    }}
+                  />
+                ) : c.title,
+                // 双击快捷重命名（菜单里也有入口）
+                onDoubleClick: () => { setRenamingId(c.id); setRenameVal(c.title) },
+              }))}
+              activeKey={activeId ? String(activeId) : undefined}
+              onActiveChange={(key) => handleSelectConv(Number(key))}
+              menu={(item) => ({
+                items: [
+                  { key: 'rename', label: '重命名' },
+                  { key: 'up', label: '上移', disabled: item.key === String(conversations[0]?.id) },
+                  { key: 'down', label: '下移', disabled: item.key === String(conversations[conversations.length - 1]?.id) },
+                  { type: 'divider' },
+                  { key: 'delete', label: '删除对话', danger: true },
+                ],
+                onClick: ({ key: menuKey }) => handleConvMenu(menuKey, Number(item.key)),
+              })}
+            />
           )}
         </div>
       </div>
@@ -943,90 +998,6 @@ function RawJSONSection({ title, raw, asMarkdown = false }) {
 }
 
 /* === 对话历史项（支持拖拽排序、重命名、删除） === */
-function ConvItem({ conv, index, isActive, onSelect, onRename, onDelete, onDragReorder, allConvs }) {
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState(conv.title)
-  const [dragOver, setDragOver] = useState(false)
-  const dragRef = useRef(null)
-
-  const handleRename = () => {
-    const v = editValue.trim()
-    if (v && v !== conv.title) onRename(v)
-    setEditing(false)
-  }
-
-  const handleDragStart = (e) => {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(conv.id))
-    dragRef.current = conv.id
-  }
-
-  const handleDragOver = (e) => {
-    e.preventDefault()
-    setDragOver(true)
-  }
-
-  const handleDragLeave = () => setDragOver(false)
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    const draggedId = parseInt(e.dataTransfer.getData('text/plain'))
-    if (draggedId === conv.id) return
-
-    // 重新排序
-    const ids = allConvs.map(c => c.id)
-    const fromIdx = ids.indexOf(draggedId)
-    const toIdx = ids.indexOf(conv.id)
-    if (fromIdx === -1 || toIdx === -1) return
-
-    ids.splice(fromIdx, 1)
-    ids.splice(toIdx, 0, draggedId)
-    onDragReorder(ids)
-  }
-
-  if (editing) {
-    return (
-      <div className={`conv-item ${isActive ? 'active' : ''}`}>
-        <input
-          className="conv-edit-input"
-          value={editValue}
-          autoFocus
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={handleRename}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleRename()
-            if (e.key === 'Escape') { setEditing(false); setEditValue(conv.title) }
-          }}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div
-      className={`conv-item ${isActive ? 'active' : ''} ${dragOver ? 'drag-over' : ''}`}
-      onClick={onSelect}
-      draggable
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <GripVertical size={12} strokeWidth={2} className="conv-grip" />
-      <span className="conv-title-text">{conv.title}</span>
-      <div className="conv-actions">
-        <button className="conv-action-btn" onClick={(e) => { e.stopPropagation(); setEditing(true); setEditValue(conv.title) }} title="重命名">
-          <Pencil size={11} strokeWidth={2} />
-        </button>
-        <button className="conv-action-btn danger" onClick={(e) => { e.stopPropagation(); onDelete() }} title="删除">
-          <Trash2 size={11} strokeWidth={2} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
 /* === 消息气泡（支持流式 + 思考过程 + 双击查看原始数据 + 单句删除） === */
 const MessageBubble = memo(function MessageBubble({ msg, index, onConfirmSave, onDismissSave, onRetry, onShowDetail, onDelete, isLast }) {
   const isUser = msg.role === 'user'

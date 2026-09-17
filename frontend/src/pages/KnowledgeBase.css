@@ -23,39 +23,19 @@
 .chat-history-list { flex:1; overflow-y:auto; padding:6px; }
 .ch-empty { text-align:center; padding:30px 10px; font-size:12px; color:var(--text-light); }
 
-.conv-item {
-  display:flex; align-items:center; gap:6px;
-  padding:8px 10px; border-radius:var(--radius-sm); cursor:pointer;
-  margin-bottom:2px; transition:all var(--duration-fast) var(--ease);
-  border:1px solid transparent;
+/* 会话列表（@ant-design/x Conversations）：ICE 主题适配 */
+.chat-history-list .ant-conversations { font-size:12px; }
+.chat-history-list .ant-conversations-item { border-radius:var(--radius-sm); margin-bottom:2px; }
+.chat-history-list .ant-conversations-item-active {
+  background:var(--accent-light);
+  color:var(--accent-dark);
+  font-weight:600;
 }
-.conv-item:hover { background:var(--bg-muted); }
-.conv-item.active { background:var(--accent-light); border-color:var(--accent); }
-.conv-item.drag-over { border-color:var(--accent); border-style:dashed; background:var(--accent-light); }
-
-.conv-grip { color:var(--text-light); flex-shrink:0; cursor:grab; opacity:0; transition:opacity var(--duration-fast) var(--ease); }
-.conv-item:hover .conv-grip { opacity:1; }
-.conv-title-text {
-  flex:1; font-size:12px; line-height:1.4; color:var(--text);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.conv-item.active .conv-title-text { color:var(--accent-dark); font-weight:600; }
-
-.conv-actions { display:flex; gap:2px; opacity:0; transition:opacity var(--duration-fast) var(--ease); }
-.conv-item:hover .conv-actions { opacity:1; }
-.conv-action-btn {
-  width:22px; height:22px; border:none; background:none;
-  color:var(--text-muted); cursor:pointer; border-radius:3px;
-  display:flex; align-items:center; justify-content:center;
-  transition:all var(--duration-fast) var(--ease);
-}
-.conv-action-btn:hover { background:var(--bg-card); color:var(--accent); }
-.conv-action-btn.danger:hover { color:var(--danger, #dc2626); }
 
 .conv-edit-input {
   flex:1; border:1px solid var(--accent); border-radius:var(--radius-sm);
   padding:4px 8px; font-size:12px; font-family:var(--font); color:var(--text);
-  background:var(--bg-card); outline:none;
+  background:var(--bg-card); outline:none; width:100%;
 }
 
 .kb-chat-main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; position:relative; }
