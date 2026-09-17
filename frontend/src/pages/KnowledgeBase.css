@@ -447,31 +447,15 @@
 .vision-preset:hover { border-color:var(--accent); color:var(--accent); }
 .vision-preset.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); font-weight:600; }
 
-/* === 输入框 === */
-.chat-input-wrap { position:relative;
-  display:flex; gap:8px; align-items:flex-end;
-  background:var(--bg-muted); border:1px solid var(--border); border-radius:var(--radius-lg); padding:5px 5px 5px 14px;
-  transition:border-color var(--duration-fast) var(--ease);
-}
-.chat-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
-.chat-input {
-  flex:1; border:none; background:none; resize:none; font-family:var(--font);
-  font-size:13px; padding:6px 0; max-height:100px; line-height:1.5; outline:none; color:var(--text);
-}
-.chat-input::placeholder { color:var(--text-light); }
-.chat-clip-btn {
+/* 输入框（@ant-design/x Sender）：ICE 主题适配 */
+.ice-sender .ant-sender-input { font-size:13px; font-family:var(--font); }
+.ice-sender .ant-sender-input textarea { font-family:var(--font); }
+.chat-clip-btn, .chat-file-btn {
   width:32px; height:32px; border:none; background:none; color:var(--text-muted);
   cursor:pointer; display:flex; align-items:center; justify-content:center;
   border-radius:var(--radius); transition:all var(--duration-fast) var(--ease); flex-shrink:0;
 }
-.chat-clip-btn:hover { background:var(--accent-light); color:var(--accent); }
-.chat-send {
-  width:32px; height:32px; border:none; background:var(--accent); color:#fff;
-  border-radius:var(--radius); cursor:pointer; display:flex; align-items:center;
-  justify-content:center; transition:background var(--duration-fast) var(--ease); flex-shrink:0;
-}
-.chat-send:hover { background:var(--accent-dark); }
-.chat-send:disabled { background:var(--text-light); cursor:not-allowed; }
+.chat-clip-btn:hover, .chat-file-btn:hover { background:var(--accent-light); color:var(--accent); }
 
 /* === 消息气泡（壳由 @ant-design/x Bubble 提供） === */
 .msg { margin-bottom:14px; }
