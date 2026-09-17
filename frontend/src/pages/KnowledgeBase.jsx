@@ -728,10 +728,11 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                   className={`chat-node-dot ${i === currentNodeIdx ? 'current' : ''}`}
                   onMouseEnter={(e) => {
                     // 预览卡 fixed 定位渲染在组件根部：轨道是 overflow-y:auto
-                    // 的滚动容器，绝对定位子元素会被横向裁掉；轨道在右侧，
-                    // 锚点取圆点左缘（卡片 translateX(-100%) 向左展开）
+                    // 的滚动容器，绝对定位子元素会被横向裁掉。轨道在右侧，
+                    // 必须用 right 锚定（left 锚定在视口右缘时，shrink-to-fit
+                    // 的可用宽度只剩十几像素，文本被压成一字一行的竖条）
                     const r = e.currentTarget.getBoundingClientRect()
-                    setNodePreview({ text: fullText, x: r.left - 10, y: r.top + r.height / 2 })
+                    setNodePreview({ text: fullText, right: window.innerWidth - r.left + 10, y: r.top + r.height / 2 })
                   }}
                   onMouseLeave={() => setNodePreview(null)}
                   onClick={() => {
@@ -855,9 +856,9 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           </div>
         )}
 
-        {/* 导航点悬停预览：fixed 定位，脱离轨道滚动容器的裁剪 */}
+        {/* 导航点悬停预览：fixed 定位，脱离轨道滚动容器的裁剪（right 锚定向左展开） */}
         {nodePreview && (
-          <div className="chat-node-preview-float" style={{ left: nodePreview.x, top: nodePreview.y }}>
+          <div className="chat-node-preview-float" style={{ right: nodePreview.right, top: nodePreview.y }}>
             {nodePreview.text.length > 260 ? nodePreview.text.slice(0, 260) + '…' : nodePreview.text}
           </div>
         )}
