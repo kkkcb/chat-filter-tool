@@ -728,9 +728,10 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                   className={`chat-node-dot ${i === currentNodeIdx ? 'current' : ''}`}
                   onMouseEnter={(e) => {
                     // 预览卡 fixed 定位渲染在组件根部：轨道是 overflow-y:auto
-                    // 的滚动容器，绝对定位子元素会被横向裁掉（CSS 规范行为）
+                    // 的滚动容器，绝对定位子元素会被横向裁掉；轨道在右侧，
+                    // 锚点取圆点左缘（卡片 translateX(-100%) 向左展开）
                     const r = e.currentTarget.getBoundingClientRect()
-                    setNodePreview({ text: fullText, x: r.right + 10, y: r.top + r.height / 2 })
+                    setNodePreview({ text: fullText, x: r.left - 10, y: r.top + r.height / 2 })
                   }}
                   onMouseLeave={() => setNodePreview(null)}
                   onClick={() => {

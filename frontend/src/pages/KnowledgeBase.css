@@ -716,9 +716,9 @@
 }
 .ch-collapse-btn:hover { color:var(--accent); background:var(--bg-muted); }
 
-/* 对话节点导航：左侧竖轨 */
+/* 对话节点导航：右侧竖轨（紧贴消息列右缘） */
 .chat-node-track {
-  position:absolute; left:max(2px, calc(50% - 406px)); top:50%; transform:translateY(-50%); z-index:10;
+  position:absolute; right:max(2px, calc(50% - 406px)); top:50%; transform:translateY(-50%); z-index:10;
   display:flex; flex-direction:column; gap:12px; align-items:center;
   padding:4px 2px; max-height:55vh; overflow-y:auto;
   background:transparent; border:none; box-shadow:none; border-radius:0;
@@ -788,10 +788,9 @@
 .chat-input-wrap.drag-over { border-color:var(--accent); border-style:dashed; background:var(--accent-light); }
 
 /* 节点悬停预览：fixed 挂在组件根，显示完整问题文本。
-   旧的绝对定位方案会被轨道的 overflow-y:auto 横向裁剪（CSS 规范：
-   一个方向非 visible，另一个方向也按 visible 以外处理），永远显示不出 */
+   轨道在右侧 → 预览从圆点向左弹出（translateX(-100%) 锚定右缘） */
 .chat-node-preview-float {
-  position:fixed; transform:translateY(-50%); z-index:300;
+  position:fixed; transform:translateY(-50%) translateX(-100%); z-index:300;
   max-width:300px; padding:7px 12px;
   background:var(--bg-card); border:1px solid var(--border);
   border-radius:8px; box-shadow:var(--shadow-lg);
@@ -800,8 +799,8 @@
   pointer-events:none; animation:nodePreviewIn .12s var(--ease);
 }
 @keyframes nodePreviewIn {
-  from { opacity:0; transform:translateY(-50%) translateX(-4px); }
-  to { opacity:1; transform:translateY(-50%) translateX(0); }
+  from { opacity:0; transform:translateY(-50%) translateX(-100%) translateX(4px); }
+  to { opacity:1; transform:translateY(-50%) translateX(-100%); }
 }
 
 /* 消息区 + 节点轨共享的居中容器 */
