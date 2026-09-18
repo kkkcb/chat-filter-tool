@@ -94,6 +94,7 @@ async def get_message_raw(message_id: int, db: Session = Depends(get_db)):
         "id": m.id,
         "conversation_id": m.conversation_id,
         "role": m.role,
+        "reasoning": m.reasoning or "",
         "raw_request": m.raw_request or "",
         "raw_response": m.raw_response or "",
     }

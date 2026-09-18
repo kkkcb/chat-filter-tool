@@ -137,9 +137,12 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
                 yield f'data: {chunk}\n\n'
 
             # 流结束后保存助手消息（含原始请求和返回）
+            # reasoning 全文进 raw_response：详情弹窗要能看到思考过程，
+            # 只存长度的话双击详情里推理细节不可见
             raw_response = json.dumps({
                 "type": msg_data.get("type") if isinstance(msg_data, dict) else "chat",
                 "reply": full_content,
+                **({"reasoning": full_reasoning} if full_reasoning else {}),
                 "reasoning_length": len(full_reasoning),
                 "content_length": len(full_content),
             }, ensure_ascii=False, indent=2)
@@ -165,6 +168,7 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
                     partial_response = json.dumps({
                         "type": "aborted",
                         "reply": full_content,
+                        **({"reasoning": full_reasoning} if full_reasoning else {}),
                         "reasoning_length": len(full_reasoning),
                         "content_length": len(full_content),
                         "error": str(e)[:200],

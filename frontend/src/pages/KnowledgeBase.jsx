@@ -244,14 +244,15 @@ export default function KnowledgeBase() {
     setDetailModal({
       rawRequest: msg.rawRequest || '',
       rawResponse: msg.rawResponse || '',
+      reasoning: msg.reasoning || '',
       loading: !hasLocal,
     })
     if (!hasLocal && msg.messageId) {
       try {
         const d = await getMessage(msg.messageId)
-        setDetailModal({ rawRequest: d.raw_request || '(无)', rawResponse: d.raw_response || '(无)', loading: false })
+        setDetailModal({ rawRequest: d.raw_request || '(无)', rawResponse: d.raw_response || '(无)', reasoning: d.reasoning || '', loading: false })
       } catch {
-        setDetailModal({ rawRequest: '加载失败，请重试', rawResponse: '', loading: false })
+        setDetailModal({ rawRequest: '加载失败，请重试', rawResponse: '', reasoning: '', loading: false })
       }
     }
   }
@@ -917,6 +918,9 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                 <>
                   <RawJSONSection title="系统提示词 (System)" raw={extractSystemPrompt(detailModal.rawRequest)} asMarkdown />
                   <RawJSONSection title="请求 (Request)" raw={stripSystemPrompt(detailModal.rawRequest)} />
+                  {detailModal.reasoning && (
+                    <RawJSONSection title="推理过程 (Reasoning)" raw={detailModal.reasoning} asMarkdown />
+                  )}
                   <RawJSONSection title="返回 (Response)" raw={detailModal.rawResponse} />
                 </>
               )}
