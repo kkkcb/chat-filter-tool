@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # 润色/总结等轻量文字任务用 flash（实测 11s vs glm-5.3 的 16~29s+，质量相当）
     glm_polish_model: str = "glm-5.3-flash"
 
+    # Agnes AI 免费模型（文本/图片/视频，OpenAI 兼容网关）
+    agnes_api_base: str = "https://api.agnes-ai.cn/v1"
+    agnes_api_key: str = ""
+
     # Database
     database_path: str = "../data/workbench.db"
 

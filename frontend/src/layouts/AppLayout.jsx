@@ -4,6 +4,7 @@ import KnowledgeBase from '../pages/KnowledgeBase'
 import PersonalKB from '../pages/PersonalKB'
 import CreativeStudio from '../pages/CreativeStudio'
 import WeChatExport from '../pages/WeChatExport'
+import ModelLab from '../pages/ModelLab'
 import ToastHost from '../components/Toast'
 import ConfirmHost from '../components/Confirm'
 import AccessGateHost from '../components/AccessGate'
@@ -31,6 +32,7 @@ export default function AppLayout() {
           {view === 'notes' && <PersonalKB />}
           {view === 'studio' && <CreativeStudio />}
           {view === 'wechat' && <WeChatExport />}
+          {view === 'lab' && <ModelLab />}
         </div>
       </main>
       <ToastHost />

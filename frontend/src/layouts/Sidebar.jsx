@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Snowflake, BookOpen, PenLine, MessagesSquare, MessageCircle } from 'lucide-react'
+import { Snowflake, BookOpen, PenLine, MessagesSquare, MessageCircle, FlaskConical } from 'lucide-react'
 import { useMaterialStore } from '../stores/materialStore'
 import { useNoteStore } from '../stores/noteStore'
 import './Sidebar.css'
@@ -56,6 +56,14 @@ export default function Sidebar({ currentView, onSwitch }) {
           onClick={() => onSwitch('wechat')}
         >
           <span className="icon"><MessagesSquare size={18} strokeWidth={2} /></span> 微信记录
+        </div>
+
+        {/* 模型实验室（Agnes 免费模型） */}
+        <div
+          className={`nav-item ${currentView === 'lab' ? 'active' : ''}`}
+          onClick={() => onSwitch('lab')}
+        >
+          <span className="icon"><FlaskConical size={18} strokeWidth={2} /></span> 模型实验室
         </div>
       </nav>
 
