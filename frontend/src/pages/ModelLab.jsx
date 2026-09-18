@@ -275,6 +275,7 @@ function VideoTab() {
   const [aspect, setAspect] = useState('16:9')
   const [seconds, setSeconds] = useState(5)
   const [prompt, setPrompt] = useState('')
+  const [polishing, setPolishing] = useState(false)
   const [firstFrame, setFirstFrame] = useState('')
   const [lastFrame, setLastFrame] = useState('')
   const [refImgs, setRefImgs] = useState('')
@@ -318,6 +319,23 @@ function VideoTab() {
     const timer = setInterval(poll, 3000)
     return () => clearInterval(timer)
   }, [tasks, poll])
+
+  // 提示词六要素润色：主体/动作/镜头/风格/声音/一致性 → 替换输入框内容
+  const polish = async () => {
+    if (!prompt.trim() || polishing) return
+    setPolishing(true)
+    try {
+      const d = await request('/agnes/polish-video-prompt', {
+        method: 'POST', body: JSON.stringify({ prompt: prompt.trim() }),
+      })
+      if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
+      if (d.polished) { setPrompt(d.polished); toast('已按六要素润色，可直接生成或再改', 'success') }
+    } catch (e) {
+      toast(e?.message || '润色失败', 'error')
+    } finally {
+      setPolishing(false)
+    }
+  }
 
   const submit = async () => {
     if (!prompt.trim() || submitting) return
@@ -401,11 +419,16 @@ function VideoTab() {
       )}
       <div className="lab-prompt-box">
         <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
-          placeholder="描述视频画面与运镜：主体与场景 → 动作变化 → 镜头语言 → 视觉风格"
+          placeholder="描述视频画面与运镜：主体与场景 → 动作变化 → 镜头语言 → 视觉风格（写完可点「润色」自动扩写成六要素专业提示词）"
           rows={3} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit() }} />
-        <button className="lab-primary" onClick={submit} disabled={!prompt.trim() || submitting}>
-          {submitting ? <><Loader2 size={14} className="spin" /> 提交中</> : '生成视频（免费）'}
-        </button>
+        <div className="lab-prompt-actions">
+          <button className="lab-polish" onClick={polish} disabled={!prompt.trim() || polishing}>
+            {polishing ? <><Loader2 size={13} className="spin" /> 润色中</> : '润色'}
+          </button>
+          <button className="lab-primary" onClick={submit} disabled={!prompt.trim() || submitting}>
+            {submitting ? <><Loader2 size={14} className="spin" /> 提交中</> : '生成视频（免费）'}
+          </button>
+        </div>
       </div>
       <div className="lab-tasks">
         {tasks.length === 0 && <div className="lab-empty small">提交后任务在此排队，完成后可直接播放 · 免费档有速率限制，报 429 稍等再试</div>}

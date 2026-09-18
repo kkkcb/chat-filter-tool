@@ -135,3 +135,38 @@ async def query_video(video_id: str, model: str) -> dict:
         if resp.status_code != 200:
             raise RuntimeError(f"上游 {resp.status_code}: {resp.text[:300]}")
         return resp.json()
+
+
+# 视频提示词六要素润色（Agnes 官方文档的提示词建议结构）
+_VIDEO_PROMPT_SYSTEM = """你是视频生成提示词工程师。把用户的简短想法扩写成专业的视频生成提示词。
+
+按以下顺序组织内容（自然融合成连贯的中文描述，不要机械列编号）：
+1. 主体与场景：明确人物、物体、环境和时间。
+2. 动作与变化：描述主体如何移动，以及场景如何变化。
+3. 镜头语言：指定推、拉、摇、移、跟拍、固定镜头或景别。
+4. 视觉风格：补充光线、色彩、材质、写实程度和氛围。
+5. 声音与节奏：需要时描述环境声、动作声。
+6. 一致性要求：说明需要保持不变的主体外观、产品细节或构图。
+
+规则：
+- 忠于用户原始意图，不改变主体和核心创意；缺失的要素合理补全
+- 输出只有润色后的提示词本身，不要任何解释、前缀或引号
+- 长度 100~200 字"""
+
+
+async def polish_video_prompt(prompt: str) -> str:
+    """用免费的 agnes 文本模型润色视频提示词（非流式，thinking 已由网关默认处理）。"""
+    payload = {
+        "model": AGNES_FREE_MODELS["text"][0]["id"],
+        "messages": [
+            {"role": "system", "content": _VIDEO_PROMPT_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+    }
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        resp = await client.post(f"{_base()}/chat/completions",
+                                 headers=_headers(), json=payload)
+        if resp.status_code != 200:
+            raise RuntimeError(f"上游 {resp.status_code}: {resp.text[:300]}")
+        content = resp.json()["choices"][0]["message"].get("content") or ""
+        return content.strip()

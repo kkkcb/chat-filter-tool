@@ -120,6 +120,20 @@ async def video_create(req: AgnesVideoCreate, db: Session = Depends(get_db)):
     return d
 
 
+class AgnesPolishRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+
+
+@router.post("/agnes/polish-video-prompt")
+async def polish_video_prompt(req: AgnesPolishRequest):
+    """视频提示词六要素润色（主体/动作/镜头/风格/声音/一致性）。"""
+    try:
+        polished = await agnes_service.polish_video_prompt(req.prompt)
+        return {"polished": polished}
+    except RuntimeError as e:
+        return {"error": str(e)}
+
+
 @router.get("/agnes/videos/query")
 async def video_query(video_id: str, model: str = "", db: Session = Depends(get_db)):
     try:
