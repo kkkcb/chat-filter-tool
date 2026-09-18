@@ -254,3 +254,12 @@ async def _chat_once(payload: dict) -> str:
             raise RuntimeError(f"上游 {resp.status_code}: {resp.text[:300]}")
         content = resp.json()["choices"][0]["message"].get("content") or ""
         return content.strip()
+
+
+# 提示词模板对外展示（前端调试用：看清润色/修订到底怎么约束模型）
+PROMPT_TEMPLATES = {
+    "video_polish": _VIDEO_PROMPT_SYSTEM,
+    "video_revise": _VIDEO_REVISE_SYSTEM,
+    "image_polish": _IMAGE_PROMPT_SYSTEM,
+    "image_revise": _IMAGE_REVISE_SYSTEM,
+}

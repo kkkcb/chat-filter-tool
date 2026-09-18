@@ -38,9 +38,13 @@ const V20_DIMS = { '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [720, 720], 
 export default function ModelLab() {
   const [tab, setTab] = useState('chat')
   const [keyOk, setKeyOk] = useState(true)
+  const [templates, setTemplates] = useState(null) // 润色/修订的系统提示词模板（页面展示）
 
   useEffect(() => {
-    request('/agnes/models').then(d => setKeyOk(!!d.key_ok)).catch(() => setKeyOk(false))
+    request('/agnes/models').then(d => {
+      setKeyOk(!!d.key_ok)
+      setTemplates(d.prompt_templates || null)
+    }).catch(() => setKeyOk(false))
   }, [])
 
   return (
@@ -68,9 +72,27 @@ export default function ModelLab() {
         </div>
       )}
       {tab === 'chat' && <ChatTab />}
-      {tab === 'image' && <ImageTab />}
-      {tab === 'video' && <VideoTab />}
+      {tab === 'image' && <ImageTab templates={templates} />}
+      {tab === 'video' && <VideoTab templates={templates} />}
     </div>
+  )
+}
+
+
+/* 提示词模板面板：展示润色/修订背后的系统提示词（调试用） */
+function PromptTemplatePanel({ templates, keys }) {
+  if (!templates) return null
+  const names = { video_polish: '视频·统一润色', video_revise: '视频·按指令修改', image_polish: '图片·统一润色', image_revise: '图片·按指令修改' }
+  return (
+    <details className="lab-templates">
+      <summary>⚙ 提示词模板（润色/指令修改背后的系统提示词）</summary>
+      {keys.map(k => (
+        <div key={k} className="lab-template">
+          <div className="lab-template-name">{names[k] || k}</div>
+          <pre>{templates[k]}</pre>
+        </div>
+      ))}
+    </details>
   )
 }
 
@@ -188,7 +210,7 @@ const IMAGE_MODULES = [
 ]
 
 /* ============ 图片生成 ============ */
-function ImageTab() {
+function ImageTab({ templates }) {
   const [model, setModel] = useState(IMAGE_MODELS[0].id)
   const [size, setSize] = useState('1K')
   const [ratio, setRatio] = useState('1:1')
@@ -360,6 +382,7 @@ function ImageTab() {
         <textarea value={refs} onChange={e => setRefs(e.target.value)} rows={3}
           placeholder={'https://example.com/a.png\nhttps://example.com/b.png'} />
       </details>
+      <PromptTemplatePanel templates={templates} keys={['image_polish', 'image_revise']} />
       {gallery.length > 0 && (
         <div className="lab-gallery">
           {gallery.map(g => (
@@ -394,7 +417,7 @@ const VIDEO_MODULES = [
   { key: 'consistency', name: '一致性要求', hint: '保持不变的外观/细节/构图，如：毛色花纹不变' },
 ]
 
-function VideoTab() {
+function VideoTab({ templates }) {
   const [model, setModel] = useState(VIDEO_MODELS[0].id)
   const [mode, setMode] = useState('text')
   const [aspect, setAspect] = useState('16:9')
@@ -410,6 +433,7 @@ function VideoTab() {
   // 历史任务卡的指定性润色：reviseFor 打开哪张卡的指令行
   const [reviseFor, setReviseFor] = useState(null)
   const [taskInstruction, setTaskInstruction] = useState('')
+  const [detailFor, setDetailFor] = useState(null) // 双击展开的请求详情卡
   const [firstFrame, setFirstFrame] = useState('')
   const [lastFrame, setLastFrame] = useState('')
   const [refImgs, setRefImgs] = useState('')
@@ -432,7 +456,7 @@ function VideoTab() {
     request('/agnes/assets?kind=video').then(list => {
       setTasks(list.map(a => ({
         video_id: a.video_id, model: a.model, prompt: a.prompt,
-        status: a.status, progress: a.progress, url: a.url, error: a.error,
+        status: a.status, progress: a.progress, url: a.url, error: a.error, params: a.params,
         internal_progress: a.internal_progress,
         upstream_created_at: a.upstream_created_at, upstream_completed_at: a.upstream_completed_at,
       })))
@@ -586,7 +610,7 @@ function VideoTab() {
       const vid = d.video_id || d.id
       if (!vid) { toast('未返回任务 ID', 'error'); return }
       setTasks(prev => [{ video_id: vid, model, prompt: effectivePrompt, status: d.status || 'pending',
-        progress: d.progress ?? 0, url: null, internal_progress: d.internal_progress,
+        progress: d.progress ?? 0, url: null, params: payload, internal_progress: d.internal_progress,
         upstream_created_at: d.created_at, upstream_completed_at: d.completed_at }, ...prev])
       toast('任务已提交，等待生成', 'success')
     } catch (e) {
@@ -687,8 +711,9 @@ function VideoTab() {
           </button>
         </div>
       </div>
+      <PromptTemplatePanel templates={templates} keys={['video_polish', 'video_revise']} />
       <div className="lab-tasks">
-        {tasks.length === 0 && <div className="lab-empty small">提交后任务在此排队，完成后可直接播放 · 免费档有速率限制，报 429 稍等再试</div>}
+        {tasks.length === 0 && <div className="lab-empty small">提交后任务在此排队，完成后可直接播放 · 免费档有速率限制，报 429 稍等再试 · 双击提示词可看完整请求</div>}
         {tasks.map(t => {
           // 计时全部用上游返回的时间戳，不做本地推测；拿不到就不显示
           const active = !['completed', 'failed'].includes(t.status)
@@ -713,7 +738,14 @@ function VideoTab() {
                     : `排队中${elapsed != null ? ' · 已' + fmt(elapsed) : ''}`}
               </span>
             </div>
-            <div className="lab-task-prompt">{t.prompt}</div>
+            <div className="lab-task-prompt" title="双击查看完整请求"
+              onDoubleClick={() => setDetailFor(detailFor === t.video_id ? null : t.video_id)}>{t.prompt}</div>
+            {detailFor === t.video_id && (
+              <div className="lab-request-detail">
+                <div className="lab-template-name">完整请求（发给上游的 JSON）</div>
+                <pre>{JSON.stringify({ model: t.model, prompt: t.prompt, ...(t.params || {}) }, null, 2)}</pre>
+              </div>
+            )}
             <button className="lab-task-revise-btn" onClick={() => {
               setReviseFor(reviseFor === t.video_id ? null : t.video_id)
               setTaskInstruction('')

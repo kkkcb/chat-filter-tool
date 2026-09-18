@@ -53,7 +53,9 @@ def _asset_dict(a: LabAsset) -> dict:
 
 @router.get("/agnes/models")
 async def list_free_models():
-    return {"key_ok": agnes_service.key_configured(), "models": agnes_service.AGNES_FREE_MODELS}
+    return {"key_ok": agnes_service.key_configured(),
+            "models": agnes_service.AGNES_FREE_MODELS,
+            "prompt_templates": agnes_service.PROMPT_TEMPLATES}
 
 
 @router.get("/agnes/assets")
