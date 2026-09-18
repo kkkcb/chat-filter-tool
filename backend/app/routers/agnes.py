@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.lab_asset import LabAsset
 from app.services import agnes_service
+from app.core.tasklog import log_task
 
 router = APIRouter()
 
@@ -44,6 +45,8 @@ def _asset_dict(a: LabAsset) -> dict:
         "params": json.loads(a.params) if a.params else {},
         "url": a.url, "video_id": a.video_id, "status": a.status,
         "progress": a.progress, "error": a.error,
+        "internal_progress": a.internal_progress, "internal_status": a.internal_status,
+        "upstream_created_at": a.upstream_created_at, "upstream_completed_at": a.upstream_completed_at,
         "created_at": a.created_at.isoformat() if a.created_at else None,
     }
 
@@ -75,6 +78,8 @@ async def chat(req: AgnesChatRequest):
 
 @router.post("/agnes/images")
 async def image(req: AgnesImageRequest, db: Session = Depends(get_db)):
+    import time as _time
+    started = _time.monotonic()
     allowed = {m["id"] for m in agnes_service.AGNES_FREE_MODELS["image"]}
     if req.model not in allowed:
         return {"error": f"仅支持免费图片模型: {sorted(allowed)}"}
@@ -84,15 +89,21 @@ async def image(req: AgnesImageRequest, db: Session = Depends(get_db)):
                      status="completed", progress=100)
     db.add(asset)
     db.commit()  # 先落一行占位，失败也能看到记录
+    log_task("image.create", asset_id=asset.id, model=req.model, size=req.size,
+             ratio=req.ratio, refs=len(req.ref_images or []), prompt=req.prompt[:80])
     try:
         result = await agnes_service.generate_image(
             req.model, req.prompt, req.size, req.ratio, req.ref_images)
         asset.url, asset.b64 = result.get("url"), result.get("b64")
         db.commit()
+        log_task("image.done", asset_id=asset.id, latency_ms=int((_time.monotonic() - started) * 1000),
+                 has_url=bool(result.get("url")), has_b64=bool(result.get("b64")))
         return {"id": asset.id, "url": asset.url, "b64": asset.b64}
     except Exception as e:
         asset.status, asset.error = "failed", str(e)[:500]
         db.commit()
+        log_task("image.failed", asset_id=asset.id, latency_ms=int((_time.monotonic() - started) * 1000),
+                 error=str(e)[:300])
         return {"error": str(e)[:300]}
 
 
@@ -102,21 +113,33 @@ class AgnesVideoCreate(BaseModel):
 
 @router.post("/agnes/videos")
 async def video_create(req: AgnesVideoCreate, db: Session = Depends(get_db)):
+    import time as _time
+    started = _time.monotonic()
     try:
         d = await agnes_service.create_video(req.payload)
     except (ValueError, RuntimeError) as e:
+        log_task("video.create_failed", model=req.payload.get("model"),
+                 error=str(e)[:300], latency_ms=int((_time.monotonic() - started) * 1000))
         return {"error": str(e)}
     vid = d.get("video_id") or d.get("id")
+    asset_id = None
     if vid:
         asset = LabAsset(kind="video", model=req.payload.get("model", ""),
                          prompt=req.payload.get("prompt", ""),
                          params=json.dumps({k: v for k, v in req.payload.items()
                                             if k not in ("model", "prompt")}, ensure_ascii=False),
                          video_id=vid, status=d.get("status") or "pending",
-                         progress=d.get("progress") or 0)
+                         progress=int(d.get("progress") or 0),
+                         upstream_created_at=d.get("created_at"),
+                         last_response=json.dumps(d, ensure_ascii=False))
         db.add(asset)
         db.commit()
+        asset_id = asset.id
         d["asset_id"] = asset.id
+    log_task("video.create", asset_id=asset_id, video_id=vid,
+             model=req.payload.get("model"), mode=req.payload.get("mode"),
+             seconds=req.payload.get("seconds"), prompt=(req.payload.get("prompt") or "")[:80],
+             upstream_status=d.get("status"), latency_ms=int((_time.monotonic() - started) * 1000))
     return d
 
 
@@ -136,17 +159,36 @@ async def polish_video_prompt(req: AgnesPolishRequest):
 
 @router.get("/agnes/videos/query")
 async def video_query(video_id: str, model: str = "", db: Session = Depends(get_db)):
+    import time as _time
+    started = _time.monotonic()
     try:
         d = await agnes_service.query_video(video_id, model)
     except RuntimeError as e:
+        log_task("video.query_error", video_id=video_id, error=str(e)[:200])
         return {"error": str(e)}
     # 同步落库：前端刷新后从列表接口拿最终状态，不必重查上游
     asset = db.query(LabAsset).filter(LabAsset.video_id == video_id).first()
     if asset and not d.get("error"):
+        prev_status = asset.status
         asset.status = d.get("status") or asset.status
         asset.progress = d.get("progress") or asset.progress
         asset.url = d.get("url") or (d.get("metadata") or {}).get("url") or asset.url
+        asset.internal_progress = d.get("internal_progress")
+        asset.internal_status = d.get("internal_status")
+        asset.upstream_completed_at = d.get("completed_at")
+        asset.last_response = json.dumps(d, ensure_ascii=False)
         if d.get("status") == "failed":
             asset.error = str((d.get("error") or {}) if isinstance(d.get("error"), dict) else d.get("error"))[:500]
         db.commit()
+        # 状态变化/终态才记日志（常规 3s 轮询不刷屏）
+        if prev_status != asset.status or asset.status in ("completed", "failed"):
+            duration = None
+            if asset.status == "completed" and d.get("created_at") and d.get("completed_at"):
+                duration = d["completed_at"] - d["created_at"]
+            log_task("video.status_change", asset_id=asset.id, video_id=video_id,
+                     model=asset.model, from_status=prev_status, to_status=asset.status,
+                     progress=asset.progress, internal_progress=asset.internal_progress,
+                     internal_status=asset.internal_status,
+                     upstream_duration_s=duration,
+                     latency_ms=int((_time.monotonic() - started) * 1000))
     return d

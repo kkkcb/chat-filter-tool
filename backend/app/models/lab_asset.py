@@ -25,4 +25,10 @@ class LabAsset(Base):
     status = Column(String(20), default="pending")  # pending/in_progress/completed/failed
     progress = Column(Integer, default=0)
     error = Column(Text, nullable=True)
+    # 上游真实数据（排查+前端计时用；不自己推测）
+    upstream_created_at = Column(Integer, nullable=True)    # 上游任务创建时间戳
+    upstream_completed_at = Column(Integer, nullable=True)  # 上游任务完成时间戳
+    internal_progress = Column(Integer, nullable=True)      # 上游内部进度（若比 progress 细）
+    internal_status = Column(String(50), nullable=True)
+    last_response = Column(Text, nullable=True)             # 最近一次上游完整响应（调试金矿）
     created_at = Column(DateTime, default=datetime.utcnow)

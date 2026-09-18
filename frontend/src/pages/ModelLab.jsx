@@ -281,8 +281,17 @@ function VideoTab() {
   const [refImgs, setRefImgs] = useState('')
   const [refAudios, setRefAudios] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [tasks, setTasks] = useState([]) // {video_id, model, prompt, status, progress, url, error}
+  const [tasks, setTasks] = useState([]) // {video_id, model, prompt, status, progress, url, error, upstream_created_at...}
   const isV25 = model === 'agnes-video-2.5-flash'
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000))
+
+  // 有进行中任务时每秒走秒表（已用时显示）
+  const hasActive = tasks.some(t => !['completed', 'failed'].includes(t.status))
+  useEffect(() => {
+    if (!hasActive) return
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [hasActive])
 
   // 历史任务从后端加载：切页/刷新后仍在；pending 的自动进入下方轮询
   useEffect(() => {
@@ -290,6 +299,8 @@ function VideoTab() {
       setTasks(list.map(a => ({
         video_id: a.video_id, model: a.model, prompt: a.prompt,
         status: a.status, progress: a.progress, url: a.url, error: a.error,
+        internal_progress: a.internal_progress,
+        upstream_created_at: a.upstream_created_at, upstream_completed_at: a.upstream_completed_at,
       })))
     }).catch(() => {})
   }, [])
@@ -308,6 +319,8 @@ function VideoTab() {
         setTasks(prev => prev.map(p => p.video_id === t.video_id
           ? { ...p, status: d.status || p.status, progress: d.progress ?? p.progress,
               url: d.url || d.metadata?.url || p.url,
+              internal_progress: d.internal_progress ?? p.internal_progress,
+              upstream_completed_at: d.completed_at ?? p.upstream_completed_at,
               error: d.status === 'failed' ? (errMsg || '生成失败') : p.error } : p))
       } catch { /* 单次失败继续 */ }
     }
@@ -316,7 +329,8 @@ function VideoTab() {
   useEffect(() => {
     const hasActive = tasks.some(t => !['completed', 'failed'].includes(t.status))
     if (!hasActive) return
-    const timer = setInterval(poll, 3000)
+    // 5s：上游查询接口也限流（实测 3s 会撞"查询过于频繁"429）
+    const timer = setInterval(poll, 5000)
     return () => clearInterval(timer)
   }, [tasks, poll])
 
@@ -373,7 +387,9 @@ function VideoTab() {
       if (d.error) { toast(d.error.slice(0, 140), 'error'); return }
       const vid = d.video_id || d.id
       if (!vid) { toast('未返回任务 ID', 'error'); return }
-      setTasks(prev => [{ video_id: vid, model, prompt: prompt.trim(), status: d.status || 'pending', progress: d.progress ?? 0, url: null }, ...prev])
+      setTasks(prev => [{ video_id: vid, model, prompt: prompt.trim(), status: d.status || 'pending',
+        progress: d.progress ?? 0, url: null, internal_progress: d.internal_progress,
+        upstream_created_at: d.created_at, upstream_completed_at: d.completed_at }, ...prev])
       toast('任务已提交，等待生成', 'success')
     } catch (e) {
       toast(e?.message || '提交失败', 'error')
@@ -432,25 +448,41 @@ function VideoTab() {
       </div>
       <div className="lab-tasks">
         {tasks.length === 0 && <div className="lab-empty small">提交后任务在此排队，完成后可直接播放 · 免费档有速率限制，报 429 稍等再试</div>}
-        {tasks.map(t => (
+        {tasks.map(t => {
+          // 计时全部用上游返回的时间戳，不做本地推测；拿不到就不显示
+          const active = !['completed', 'failed'].includes(t.status)
+          const elapsed = active && t.upstream_created_at ? Math.max(0, now - t.upstream_created_at) : null
+          const total = !active && t.upstream_created_at && t.upstream_completed_at
+            ? t.upstream_completed_at - t.upstream_created_at : null
+          // 进度：上游 internal_progress 比粗粒度 progress 更细时优先显示（同为真实返回）
+          const finer = Number.isFinite(Number(t.internal_progress))
+            && Number(t.internal_progress) > (t.progress || 0)
+            && Number(t.internal_progress) < 100
+            ? Number(t.internal_progress) : (t.progress || 0)
+          const fmt = s => s < 60 ? `${s}秒` : `${Math.floor(s / 60)}分${s % 60}秒`
+          return (
           <div key={t.video_id} className={`lab-task ${t.status}`}>
             <div className="lab-task-head">
               <span className="lab-task-model">{t.model.replace('agnes-video-', '')}</span>
               <span className={`lab-task-status ${t.status}`}>
-                {t.status === 'completed' ? '已完成' : t.status === 'failed' ? '失败' :
-                  t.status === 'in_progress' ? `生成中 ${t.progress ?? 0}%` : '排队中'}
+                {t.status === 'completed' ? `已完成${total != null ? ' · 耗时' + fmt(total) : ''}`
+                  : t.status === 'failed' ? '失败'
+                  : t.status === 'in_progress'
+                    ? `生成中 ${finer}%${elapsed != null ? ' · 已' + fmt(elapsed) : ''}`
+                    : `排队中${elapsed != null ? ' · 已' + fmt(elapsed) : ''}`}
               </span>
             </div>
             <div className="lab-task-prompt">{t.prompt}</div>
-            {t.status !== 'completed' && t.status !== 'failed' && (
-              <div className="lab-progress"><div style={{ width: `${t.progress || 0}%` }} /></div>
+            {active && (
+              <div className="lab-progress"><div style={{ width: `${finer || 3}%` }} /></div>
             )}
             {t.error && <div className="lab-task-error">{t.error}</div>}
             {t.status === 'completed' && t.url && (
               <video controls preload="metadata" src={t.url} />
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -36,6 +36,20 @@ def init_db():
             conn.execute(text("ALTER TABLE notes ADD COLUMN category TEXT DEFAULT ''"))
             conn.commit()
 
+        # lab_assets 补上游数据列（老库升级）
+        lab_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(lab_assets)"))]
+        for col_ddl in (
+            "ALTER TABLE lab_assets ADD COLUMN upstream_created_at INTEGER",
+            "ALTER TABLE lab_assets ADD COLUMN upstream_completed_at INTEGER",
+            "ALTER TABLE lab_assets ADD COLUMN internal_progress INTEGER",
+            "ALTER TABLE lab_assets ADD COLUMN internal_status VARCHAR(50)",
+            "ALTER TABLE lab_assets ADD COLUMN last_response TEXT",
+        ):
+            col_name = col_ddl.split("ADD COLUMN ")[1].split()[0]
+            if col_name not in lab_cols:
+                conn.execute(text(col_ddl))
+                conn.commit()
+
     # 存量分类种入分类表（分类一等公民化）
     try:
         with SessionLocal() as db:
