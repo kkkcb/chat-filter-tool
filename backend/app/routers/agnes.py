@@ -144,14 +144,30 @@ async def video_create(req: AgnesVideoCreate, db: Session = Depends(get_db)):
 
 
 class AgnesPolishRequest(BaseModel):
-    prompt: str = Field(..., min_length=1)
+    prompt: str = ""                       # 简单模式：一段话
+    modules: dict | None = None            # 高级模式：六要素分模块 {subject,action,camera,style,sound,consistency}
 
 
 @router.post("/agnes/polish-video-prompt")
 async def polish_video_prompt(req: AgnesPolishRequest):
-    """视频提示词六要素润色（主体/动作/镜头/风格/声音/一致性）。"""
+    """视频提示词六要素润色。简单模式传 prompt；高级模式传 modules 分模块输入。"""
+    _MODULE_LABELS = {
+        "subject": "主体与场景", "action": "动作与变化", "camera": "镜头语言",
+        "style": "视觉风格", "sound": "声音与节奏", "consistency": "一致性要求",
+    }
+    if req.modules:
+        parts = [f"{label}：{str(req.modules.get(key, '')).strip()}"
+                 for key, label in _MODULE_LABELS.items()
+                 if str(req.modules.get(key, "") or "").strip()]
+        if not parts:
+            return {"error": "至少填写一个模块"}
+        source = "\n".join(parts) + "\n\n（把以上分模块要点融合成连贯完整的视频提示词）"
+    elif req.prompt.strip():
+        source = req.prompt
+    else:
+        return {"error": "prompt 或 modules 至少提供一个"}
     try:
-        polished = await agnes_service.polish_video_prompt(req.prompt)
+        polished = await agnes_service.polish_video_prompt(source)
         return {"polished": polished}
     except RuntimeError as e:
         return {"error": str(e)}

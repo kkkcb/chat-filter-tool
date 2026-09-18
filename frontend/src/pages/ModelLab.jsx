@@ -269,6 +269,15 @@ const VIDEO_MODES = [
   { id: 'reference', name: '参考图/音' },
 ]
 
+const VIDEO_MODULES = [
+  { key: 'subject', name: '主体与场景', hint: '人物/物体/环境/时间，如：橘猫在午后窗台' },
+  { key: 'action', name: '动作与变化', hint: '主体怎么动、场景怎么变，如：伸懒腰，尾巴扫过台面' },
+  { key: 'camera', name: '镜头语言', hint: '推/拉/摇/移/跟拍/固定/景别，如：中景固定机位' },
+  { key: 'style', name: '视觉风格', hint: '光线/色彩/材质/写实度/氛围，如：暖色柔光，电影感' },
+  { key: 'sound', name: '声音与节奏', hint: '环境声/动作声，如：轻微呼吸声，窗外鸟鸣' },
+  { key: 'consistency', name: '一致性要求', hint: '保持不变的外观/细节/构图，如：毛色花纹不变' },
+]
+
 function VideoTab() {
   const [model, setModel] = useState(VIDEO_MODELS[0].id)
   const [mode, setMode] = useState('text')
@@ -276,6 +285,10 @@ function VideoTab() {
   const [seconds, setSeconds] = useState(5)
   const [prompt, setPrompt] = useState('')
   const [polishing, setPolishing] = useState(false)
+  // 高级模式：六要素分模块填写 → 统一润色 → 确认完整提示词再生成
+  const [advanced, setAdvanced] = useState(false)
+  const [modules, setModules] = useState({ subject: '', action: '', camera: '', style: '', sound: '', consistency: '' })
+  const [finalPrompt, setFinalPrompt] = useState('') // 润色后的确认区（可手改）
   const [firstFrame, setFirstFrame] = useState('')
   const [lastFrame, setLastFrame] = useState('')
   const [refImgs, setRefImgs] = useState('')
@@ -334,16 +347,27 @@ function VideoTab() {
     return () => clearInterval(timer)
   }, [tasks, poll])
 
-  // 提示词六要素润色：主体/动作/镜头/风格/声音/一致性 → 替换输入框内容
+  // 提示词润色：简单模式润色当前输入并原位替换；高级模式融合六模块到确认区
   const polish = async () => {
-    if (!prompt.trim() || polishing) return
+    if (polishing) return
+    if (advanced) {
+      const filled = Object.values(modules).some(v => v.trim())
+      if (!filled) { toast('至少填写一个模块', 'error'); return }
+    } else if (!prompt.trim()) return
     setPolishing(true)
     try {
+      const body = advanced
+        ? { modules }
+        : { prompt: prompt.trim() }
       const d = await request('/agnes/polish-video-prompt', {
-        method: 'POST', body: JSON.stringify({ prompt: prompt.trim() }),
+        method: 'POST', body: JSON.stringify(body),
       })
       if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
-      if (d.polished) { setPrompt(d.polished); toast('已按六要素润色，可直接生成或再改', 'success') }
+      if (d.polished) {
+        if (advanced) setFinalPrompt(d.polished)
+        else setPrompt(d.polished)
+        toast('已润色，确认后可生成（内容可再手改）', 'success')
+      }
     } catch (e) {
       toast(e?.message || '润色失败', 'error')
     } finally {
@@ -352,7 +376,11 @@ function VideoTab() {
   }
 
   const submit = async () => {
-    if (!prompt.trim() || submitting) return
+    const effectivePrompt = advanced ? finalPrompt.trim() : prompt.trim()
+    if (!effectivePrompt || submitting) {
+      if (advanced && !effectivePrompt) toast('高级模式请先填写模块并点击润色，确认完整提示词后再生成', 'error')
+      return
+    }
     // 模式校验（Flash 限制：图≤5 音≤3 不支持参考视频）
     const imgs = refImgs.split('\n').map(s => s.trim()).filter(Boolean)
     const audios = refAudios.split('\n').map(s => s.trim()).filter(Boolean)
@@ -368,7 +396,7 @@ function VideoTab() {
     try {
       let payload
       if (model === 'agnes-video-2.5-flash') {
-        payload = { model, prompt: prompt.trim(), mode, size: '720P', aspect_ratio: aspect, seconds: String(seconds) }
+        payload = { model, prompt: effectivePrompt, mode, size: '720P', aspect_ratio: aspect, seconds: String(seconds) }
         if (mode === 'keyframe') {
           if (firstFrame.trim()) payload.first_frame = firstFrame.trim()
           if (lastFrame.trim()) payload.last_frame = lastFrame.trim()
@@ -381,13 +409,13 @@ function VideoTab() {
         const fps = 24
         const frames = Math.max(9, Math.round((seconds * fps - 1) / 8) * 8 + 1)
         const [w, h] = V20_DIMS[aspect] || V20_DIMS['16:9']
-        payload = { model, prompt: prompt.trim(), width: w, height: h, num_frames: frames, frame_rate: fps }
+        payload = { model, prompt: effectivePrompt, width: w, height: h, num_frames: frames, frame_rate: fps }
       }
       const d = await request('/agnes/videos', { method: 'POST', body: JSON.stringify({ payload }) })
       if (d.error) { toast(d.error.slice(0, 140), 'error'); return }
       const vid = d.video_id || d.id
       if (!vid) { toast('未返回任务 ID', 'error'); return }
-      setTasks(prev => [{ video_id: vid, model, prompt: prompt.trim(), status: d.status || 'pending',
+      setTasks(prev => [{ video_id: vid, model, prompt: effectivePrompt, status: d.status || 'pending',
         progress: d.progress ?? 0, url: null, internal_progress: d.internal_progress,
         upstream_created_at: d.created_at, upstream_completed_at: d.completed_at }, ...prev])
       toast('任务已提交，等待生成', 'success')
@@ -433,15 +461,48 @@ function VideoTab() {
             placeholder={'参考音频 URL，每行一个（最多 3 段，可留空，需带 .mp3 等扩展名）\n提示词中用 <Audio 1> 指代节奏/氛围'} />
         </div>
       )}
-      <div className="lab-prompt-box">
-        <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
-          placeholder="描述视频画面与运镜：主体与场景 → 动作变化 → 镜头语言 → 视觉风格（写完可点「润色」自动扩写成六要素专业提示词）"
-          rows={3} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit() }} />
-        <div className="lab-prompt-actions">
-          <button className="lab-polish" onClick={polish} disabled={!prompt.trim() || polishing}>
-            {polishing ? <><Loader2 size={13} className="spin" /> 润色中</> : '润色'}
+      <div className="lab-prompt-wrap">
+        <div className="lab-prompt-mode">
+          <span>提示词</span>
+          <button className={`lab-mode-toggle ${advanced ? 'on' : ''}`} onClick={() => setAdvanced(a => !a)}>
+            {advanced ? '高级模式（分模块）' : '简单模式'}
           </button>
-          <button className="lab-primary" onClick={submit} disabled={!prompt.trim() || submitting}>
+          <span className="lab-mode-tip">
+            {advanced ? '填写模块 → 统一润色 → 确认完整提示词 → 生成' : '一句话描述，可点润色扩写'}
+          </span>
+        </div>
+        {advanced ? (
+          <>
+            <div className="lab-modules">
+              {VIDEO_MODULES.map(m => (
+                <label key={m.key} className="lab-module">
+                  <span className="lab-module-name">{m.name}</span>
+                  <textarea rows={2} value={modules[m.key]} placeholder={m.hint}
+                    onChange={e => setModules(prev => ({ ...prev, [m.key]: e.target.value }))} />
+                </label>
+              ))}
+            </div>
+            {finalPrompt && (
+              <div className="lab-final">
+                <div className="lab-final-head">完整提示词（确认或手改后生成）</div>
+                <textarea rows={4} value={finalPrompt} onChange={e => setFinalPrompt(e.target.value)} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="lab-prompt-box">
+            <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
+              placeholder="描述视频画面与运镜：主体与场景 → 动作变化 → 镜头语言 → 视觉风格（写完可点「润色」自动扩写成六要素专业提示词）"
+              rows={3} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit() }} />
+          </div>
+        )}
+        <div className="lab-prompt-actions">
+          <button className="lab-polish" onClick={polish}
+            disabled={polishing || (advanced ? !Object.values(modules).some(v => v.trim()) : !prompt.trim())}>
+            {polishing ? <><Loader2 size={13} className="spin" /> 润色中</> : advanced ? '统一润色' : '润色'}
+          </button>
+          <button className="lab-primary" onClick={submit}
+            disabled={submitting || !(advanced ? finalPrompt.trim() : prompt.trim())}>
             {submitting ? <><Loader2 size={14} className="spin" /> 提交中</> : '生成视频（免费）'}
           </button>
         </div>
