@@ -173,6 +173,27 @@ async def polish_video_prompt(req: AgnesPolishRequest):
         return {"error": str(e)}
 
 
+class AgnesReviseRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)       # 现有提示词（通常是润色产物）
+    instruction: str = Field(..., min_length=1)  # 自然语言修改指令
+
+
+@router.post("/agnes/revise-video-prompt")
+async def revise_video_prompt(req: AgnesReviseRequest, db: Session = Depends(get_db)):
+    """对已生成提示词做指定性修订：自然语言指令 → 专业提示词改写。"""
+    import time as _time
+    started = _time.monotonic()
+    try:
+        revised = await agnes_service.revise_video_prompt(req.prompt, req.instruction)
+        log_task("prompt.revise", instruction=req.instruction[:80],
+                 in_len=len(req.prompt), out_len=len(revised),
+                 latency_ms=int((_time.monotonic() - started) * 1000))
+        return {"polished": revised}
+    except RuntimeError as e:
+        log_task("prompt.revise_failed", instruction=req.instruction[:80], error=str(e)[:200])
+        return {"error": str(e)}
+
+
 @router.get("/agnes/videos/query")
 async def video_query(video_id: str, model: str = "", db: Session = Depends(get_db)):
     import time as _time

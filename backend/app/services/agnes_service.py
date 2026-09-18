@@ -163,6 +163,32 @@ async def polish_video_prompt(prompt: str) -> str:
             {"role": "user", "content": prompt},
         ],
     }
+    return await _chat_once(payload)
+
+
+_VIDEO_REVISE_SYSTEM = """你是视频生成提示词工程师。用户会给你一段现有的视频提示词和一条自然语言修改指令。
+
+你的任务：按修改指令修订这段提示词。
+- 只改动指令涉及的部分，其余内容原样保留
+- 用户的指令是口语化的（如"换成夜晚""镜头别动""更悬疑一点"），把它准确转译成专业的提示词表达
+- 指令含糊时按最合理的理解执行，不要求确认
+- 输出只有修订后的完整提示词本身，不要解释、前缀、引号"""
+
+
+async def revise_video_prompt(prompt: str, instruction: str) -> str:
+    """按自然语言修改指令修订已有视频提示词。"""
+    payload = {
+        "model": AGNES_FREE_MODELS["text"][0]["id"],
+        "messages": [
+            {"role": "system", "content": _VIDEO_REVISE_SYSTEM},
+            {"role": "user", "content": f"【现有提示词】\n{prompt}\n\n【修改指令】\n{instruction}"},
+        ],
+    }
+    return await _chat_once(payload)
+
+
+async def _chat_once(payload: dict) -> str:
+    """非流式单轮对话，返回文本（润色/修订共用）。"""
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         resp = await client.post(f"{_base()}/chat/completions",
                                  headers=_headers(), json=payload)

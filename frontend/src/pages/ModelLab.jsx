@@ -289,6 +289,8 @@ function VideoTab() {
   const [advanced, setAdvanced] = useState(false)
   const [modules, setModules] = useState({ subject: '', action: '', camera: '', style: '', sound: '', consistency: '' })
   const [finalPrompt, setFinalPrompt] = useState('') // 润色后的确认区（可手改）
+  const [instruction, setInstruction] = useState('')  // 自然语言修改指令
+  const [revising, setRevising] = useState(false)
   const [firstFrame, setFirstFrame] = useState('')
   const [lastFrame, setLastFrame] = useState('')
   const [refImgs, setRefImgs] = useState('')
@@ -372,6 +374,30 @@ function VideoTab() {
       toast(e?.message || '润色失败', 'error')
     } finally {
       setPolishing(false)
+    }
+  }
+
+  // 指定性润色：对已生成提示词下自然语言指令，只改指令涉及的部分
+  const revise = async () => {
+    const current = advanced ? finalPrompt : prompt
+    if (!instruction.trim() || !current.trim() || revising) return
+    setRevising(true)
+    try {
+      const d = await request('/agnes/revise-video-prompt', {
+        method: 'POST',
+        body: JSON.stringify({ prompt: current.trim(), instruction: instruction.trim() }),
+      })
+      if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
+      if (d.polished) {
+        if (advanced) setFinalPrompt(d.polished)
+        else setPrompt(d.polished)
+        setInstruction('')
+        toast('已按指令修改，确认后再生成', 'success')
+      }
+    } catch (e) {
+      toast(e?.message || '修改失败', 'error')
+    } finally {
+      setRevising(false)
     }
   }
 
@@ -494,6 +520,16 @@ function VideoTab() {
             <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
               placeholder="描述视频画面与运镜：主体与场景 → 动作变化 → 镜头语言 → 视觉风格（写完可点「润色」自动扩写成六要素专业提示词）"
               rows={3} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit() }} />
+          </div>
+        )}
+        {(advanced ? finalPrompt : prompt).trim() && (
+          <div className={`lab-revise ${advanced ? '' : 'standalone'}`}>
+            <input value={instruction} onChange={e => setInstruction(e.target.value)}
+              placeholder="对当前提示词下修改指令，如：镜头改成航拍远景 / 氛围换成冬天雪夜"
+              onKeyDown={e => { if (e.key === 'Enter') revise() }} />
+            <button onClick={revise} disabled={!instruction.trim() || revising}>
+              {revising ? <><Loader2 size={12} className="spin" /> 修改中</> : '按指令修改'}
+            </button>
           </div>
         )}
         <div className="lab-prompt-actions">
