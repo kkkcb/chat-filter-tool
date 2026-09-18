@@ -253,13 +253,25 @@ function ImageTab() {
 }
 
 /* ============ 视频生成（异步任务 + 轮询） ============ */
+const VIDEO_MODES = [
+  { id: 'text', name: '文生视频' },
+  { id: 'keyframe', name: '首尾帧' },
+  { id: 'reference', name: '参考图/音' },
+]
+
 function VideoTab() {
   const [model, setModel] = useState(VIDEO_MODELS[0].id)
+  const [mode, setMode] = useState('text')
   const [aspect, setAspect] = useState('16:9')
   const [seconds, setSeconds] = useState(5)
   const [prompt, setPrompt] = useState('')
+  const [firstFrame, setFirstFrame] = useState('')
+  const [lastFrame, setLastFrame] = useState('')
+  const [refImgs, setRefImgs] = useState('')
+  const [refAudios, setRefAudios] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [tasks, setTasks] = useState([]) // {video_id, model, prompt, status, progress, url, error}
+  const isV25 = model === 'agnes-video-2.5-flash'
 
   // 轮询进行中的任务（3s 一次）
   const poll = useCallback(async () => {
@@ -284,11 +296,29 @@ function VideoTab() {
 
   const submit = async () => {
     if (!prompt.trim() || submitting) return
+    // 模式校验（Flash 限制：图≤5 音≤3 不支持参考视频）
+    const imgs = refImgs.split('\n').map(s => s.trim()).filter(Boolean)
+    const audios = refAudios.split('\n').map(s => s.trim()).filter(Boolean)
+    if (isV25 && mode === 'keyframe' && !firstFrame.trim() && !lastFrame.trim()) {
+      toast('首尾帧模式至少提供一个首帧或尾帧 URL', 'error'); return
+    }
+    if (isV25 && mode === 'reference' && !imgs.length && !audios.length) {
+      toast('参考模式至少提供一张图片或一段音频 URL', 'error'); return
+    }
+    if (imgs.length > 5) { toast('参考图最多 5 张（Flash 限制）', 'error'); return }
+    if (audios.length > 3) { toast('参考音频最多 3 段（Flash 限制）', 'error'); return }
     setSubmitting(true)
     try {
       let payload
       if (model === 'agnes-video-2.5-flash') {
-        payload = { model, prompt: prompt.trim(), mode: 'text', size: '720P', aspect_ratio: aspect, seconds: String(seconds) }
+        payload = { model, prompt: prompt.trim(), mode, size: '720P', aspect_ratio: aspect, seconds: String(seconds) }
+        if (mode === 'keyframe') {
+          if (firstFrame.trim()) payload.first_frame = firstFrame.trim()
+          if (lastFrame.trim()) payload.last_frame = lastFrame.trim()
+        } else if (mode === 'reference') {
+          if (imgs.length) payload.images = imgs
+          if (audios.length) payload.audios = audios
+        }
       } else {
         // v2.0：无 seconds，时长 = num_frames / frame_rate，帧数须满足 8n+1
         const fps = 24
@@ -312,9 +342,14 @@ function VideoTab() {
   return (
     <div className="lab-video">
       <div className="lab-ctrl-row">
-        <select value={model} onChange={e => { setModel(e.target.value); setAspect('16:9') }}>
+        <select value={model} onChange={e => { setModel(e.target.value); setMode('text'); setAspect('16:9') }}>
           {VIDEO_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
+        {isV25 && (
+          <select value={mode} onChange={e => setMode(e.target.value)}>
+            {VIDEO_MODES.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        )}
         <select value={aspect} onChange={e => setAspect(e.target.value)}>
           {(VIDEO_ASPECTS[model] || VIDEO_ASPECTS['agnes-video-2.5-flash']).map(a =>
             <option key={a} value={a}>{a}</option>)}
@@ -325,9 +360,23 @@ function VideoTab() {
             onChange={e => setSeconds(Number(e.target.value))} />
         </div>
       </div>
+      {isV25 && mode === 'keyframe' && (
+        <div className="lab-media-row">
+          <input value={firstFrame} onChange={e => setFirstFrame(e.target.value)} placeholder="首帧图片 URL（必填一个，需公网可访问且带图片扩展名）" />
+          <input value={lastFrame} onChange={e => setLastFrame(e.target.value)} placeholder="尾帧图片 URL（可选）" />
+        </div>
+      )}
+      {isV25 && mode === 'reference' && (
+        <div className="lab-media-col">
+          <textarea value={refImgs} onChange={e => setRefImgs(e.target.value)} rows={2}
+            placeholder={'参考图片 URL，每行一个（最多 5 张，需公网可访问且带扩展名如 .png/.jpg）\n提示词中用 <Picture 1>、<Picture 2> 指代'} />
+          <textarea value={refAudios} onChange={e => setRefAudios(e.target.value)} rows={2}
+            placeholder={'参考音频 URL，每行一个（最多 3 段，可留空，需带 .mp3 等扩展名）\n提示词中用 <Audio 1> 指代节奏/氛围'} />
+        </div>
+      )}
       <div className="lab-prompt-box">
         <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
-          placeholder="描述视频画面与运镜，如：雨后未来城市街道，霓虹倒影，镜头缓慢推进，电影级"
+          placeholder="描述视频画面与运镜：主体与场景 → 动作变化 → 镜头语言 → 视觉风格"
           rows={3} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit() }} />
         <button className="lab-primary" onClick={submit} disabled={!prompt.trim() || submitting}>
           {submitting ? <><Loader2 size={14} className="spin" /> 提交中</> : '生成视频（免费）'}

@@ -118,3 +118,18 @@
 
 .lab-seconds { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); }
 .lab-seconds input[type="range"] { width:110px; accent-color:var(--accent); }
+
+/* 视频模式媒体输入（首尾帧 / 参考图音） */
+.lab-media-row { display:flex; gap:8px; padding:10px 20px 0; }
+.lab-media-row input {
+  flex:1; border:1px solid var(--border); border-radius:8px; background:var(--bg-card);
+  font-size:12px; font-family:var(--font-mono); color:var(--text); padding:7px 10px; outline:none;
+}
+.lab-media-row input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.lab-media-col { display:flex; flex-direction:column; gap:8px; padding:10px 20px 0; }
+.lab-media-col textarea {
+  border:1px dashed var(--border); border-radius:8px; background:var(--bg-muted);
+  font-size:12px; font-family:var(--font-mono); color:var(--text); padding:8px 10px;
+  outline:none; resize:vertical;
+}
+.lab-media-col textarea:focus { border-color:var(--accent); }
