@@ -166,6 +166,53 @@ async def polish_video_prompt(prompt: str) -> str:
     return await _chat_once(payload)
 
 
+# 图像提示词六要素润色（Agnes 官方文档的文生图建议结构）
+_IMAGE_PROMPT_SYSTEM = """你是图像生成提示词工程师。把用户的简短想法扩写成专业的图像生成提示词。
+
+按以下顺序组织内容（自然融合成连贯的中文描述，不要机械列编号）：
+1. 主体：画面核心人物/物体/建筑等。
+2. 场景/环境：主体所处的环境与时间。
+3. 风格：艺术风格、写实程度、材质质感。
+4. 光照：光源类型、方向、氛围。
+5. 构图：景别、视角、画面布局。
+6. 质量要求：细节密度、清晰度、视觉层次等。
+
+规则：
+- 忠于用户原始意图，不改变主体和核心创意；缺失的要素合理补全
+- 输出只有润色后的提示词本身，不要任何解释、前缀或引号
+- 长度 60~120 字"""
+
+_IMAGE_MODULE_LABELS = {
+    "subject": "主体", "scene": "场景/环境", "style": "风格",
+    "lighting": "光照", "composition": "构图", "quality": "质量要求",
+}
+
+
+def build_image_source(prompt: str = "", modules: dict | None = None) -> str | None:
+    """简单模式直接用 prompt；高级模式把分模块输入拼装成带标签的融合指令。"""
+    if modules:
+        parts = [f"{label}：{str(modules.get(key, '')).strip()}"
+                 for key, label in _IMAGE_MODULE_LABELS.items()
+                 if str(modules.get(key, "") or "").strip()]
+        if not parts:
+            return None
+        return "\n".join(parts) + "\n\n（把以上分模块要点融合成连贯完整的图像提示词）"
+    if prompt.strip():
+        return prompt
+    return None
+
+
+async def polish_image_prompt(source: str) -> str:
+    """图像提示词润色（简单/高级模式共用，source 已由 build_image_source 拼装）。"""
+    return await _chat_once({
+        "model": AGNES_FREE_MODELS["text"][0]["id"],
+        "messages": [
+            {"role": "system", "content": _IMAGE_PROMPT_SYSTEM},
+            {"role": "user", "content": source},
+        ],
+    })
+
+
 _VIDEO_REVISE_SYSTEM = """你是视频生成提示词工程师。用户会给你一段现有的视频提示词和一条自然语言修改指令。
 
 你的任务：按修改指令修订这段提示词。
@@ -175,13 +222,24 @@ _VIDEO_REVISE_SYSTEM = """你是视频生成提示词工程师。用户会给你
 - 输出只有修订后的完整提示词本身，不要解释、前缀、引号"""
 
 
-async def revise_video_prompt(prompt: str, instruction: str) -> str:
-    """按自然语言修改指令修订已有视频提示词。"""
+_IMAGE_REVISE_SYSTEM = """你是图像生成提示词工程师。用户会给你一段现有的图像提示词和一条自然语言修改指令。
+
+你的任务：按修改指令修订这段提示词。
+- 只改动指令涉及的部分，其余内容原样保留
+- 用户的指令是口语化的（如"换成夜景""人少一点""更写实"），把它准确转译成专业的提示词表达
+- 指令含糊时按最合理的理解执行，不要求确认
+- 输出只有修订后的完整提示词本身，不要解释、前缀、引号"""
+
+
+async def revise_video_prompt(prompt: str, instruction: str, kind: str = "video") -> str:
+    """按自然语言修改指令修订已有提示词（kind=video/image 选对应系统约束）。"""
+    system = _IMAGE_REVISE_SYSTEM if kind == "image" else _VIDEO_REVISE_SYSTEM
+    noun = "图像" if kind == "image" else "视频"
     payload = {
         "model": AGNES_FREE_MODELS["text"][0]["id"],
         "messages": [
-            {"role": "system", "content": _VIDEO_REVISE_SYSTEM},
-            {"role": "user", "content": f"【现有提示词】\n{prompt}\n\n【修改指令】\n{instruction}"},
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"【现有{noun}提示词】\n{prompt}\n\n【修改指令】\n{instruction}"},
         ],
     }
     return await _chat_once(payload)

@@ -178,6 +178,15 @@ function ChatTab() {
   )
 }
 
+const IMAGE_MODULES = [
+  { key: 'subject', name: '主体', hint: '核心人物/物体，如：发光浮空城市' },
+  { key: 'scene', name: '场景/环境', hint: '环境与时间，如：日出时分的薄雾峡谷' },
+  { key: 'style', name: '风格', hint: '艺术风格/写实度/质感，如：电影级写实' },
+  { key: 'lighting', name: '光照', hint: '光源/方向/氛围，如：柔和金色光线' },
+  { key: 'composition', name: '构图', hint: '景别/视角/布局，如：广角构图' },
+  { key: 'quality', name: '质量要求', hint: '细节/清晰度/密度，如：丰富建筑细节，高视觉密度' },
+]
+
 /* ============ 图片生成 ============ */
 function ImageTab() {
   const [model, setModel] = useState(IMAGE_MODELS[0].id)
@@ -187,6 +196,13 @@ function ImageTab() {
   const [refs, setRefs] = useState('') // 参考图 URL，每行一个
   const [loading, setLoading] = useState(false)
   const [gallery, setGallery] = useState([]) // 后端持久化的生成历史
+  // 高级提示词工作台（与视频同款流程）
+  const [advanced, setAdvanced] = useState(false)
+  const [modules, setModules] = useState({ subject: '', scene: '', style: '', lighting: '', composition: '', quality: '' })
+  const [finalPrompt, setFinalPrompt] = useState('')
+  const [instruction, setInstruction] = useState('')
+  const [polishing, setPolishing] = useState(false)
+  const [revising, setRevising] = useState(false)
 
   // 历史从后端加载：切页/刷新后画廊仍在
   useEffect(() => {
@@ -198,19 +214,71 @@ function ImageTab() {
     }).catch(() => {})
   }, [])
 
+  const polish = async () => {
+    if (polishing) return
+    if (advanced) {
+      if (!Object.values(modules).some(v => v.trim())) { toast('至少填写一个模块', 'error'); return }
+    } else if (!prompt.trim()) return
+    setPolishing(true)
+    try {
+      const d = await request('/agnes/polish-image-prompt', {
+        method: 'POST',
+        body: JSON.stringify(advanced ? { modules } : { prompt: prompt.trim() }),
+      })
+      if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
+      if (d.polished) {
+        if (advanced) setFinalPrompt(d.polished)
+        else setPrompt(d.polished)
+        toast('已润色，确认后可生成（内容可再手改）', 'success')
+      }
+    } catch (e) {
+      toast(e?.message || '润色失败', 'error')
+    } finally {
+      setPolishing(false)
+    }
+  }
+
+  // 指定性润色：对当前提示词下自然语言指令
+  const revise = async () => {
+    const current = advanced ? finalPrompt : prompt
+    if (!instruction.trim() || !current.trim() || revising) return
+    setRevising(true)
+    try {
+      const d = await request('/agnes/revise-video-prompt', {
+        method: 'POST',
+        body: JSON.stringify({ prompt: current.trim(), instruction: instruction.trim(), kind: 'image' }),
+      })
+      if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
+      if (d.polished) {
+        if (advanced) setFinalPrompt(d.polished)
+        else setPrompt(d.polished)
+        setInstruction('')
+        toast('已按指令修改，确认后再生成', 'success')
+      }
+    } catch (e) {
+      toast(e?.message || '修改失败', 'error')
+    } finally {
+      setRevising(false)
+    }
+  }
+
   const generate = async () => {
-    if (!prompt.trim() || loading) return
+    const effectivePrompt = advanced ? finalPrompt.trim() : prompt.trim()
+    if (!effectivePrompt || loading) {
+      if (advanced && !effectivePrompt) toast('高级模式请先填写模块并润色，确认完整提示词后再生成', 'error')
+      return
+    }
     setLoading(true)
     try {
       const refImages = refs.split('\n').map(s => s.trim()).filter(Boolean)
       const d = await request('/agnes/images', {
         method: 'POST',
-        body: JSON.stringify({ model, prompt: prompt.trim(), size, ratio, ref_images: refImages.length ? refImages : null }),
+        body: JSON.stringify({ model, prompt: effectivePrompt, size, ratio, ref_images: refImages.length ? refImages : null }),
       })
       if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
       const url = d.url || (d.b64 ? `data:image/png;base64,${d.b64}` : null)
       if (!url) { toast('未返回图片', 'error'); return }
-      setGallery(g => [{ id: d.id || Date.now(), url, prompt: prompt.trim(), model, size, ratio }, ...g])
+      setGallery(g => [{ id: d.id || Date.now(), url, prompt: effectivePrompt, model, size, ratio }, ...g])
     } catch (e) {
       toast(e?.message || '生成失败', 'error')
     } finally {
@@ -231,13 +299,61 @@ function ImageTab() {
           {RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
-      <div className="lab-prompt-box">
-        <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
-          placeholder="描述想要的画面：[主体] + [场景/环境] + [风格] + [光照] + [构图]"
-          rows={3} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate() }} />
-        <button className="lab-primary" onClick={generate} disabled={!prompt.trim() || loading}>
-          {loading ? <><Loader2 size={14} className="spin" /> 生成中（数秒~几十秒）</> : '生成图片'}
-        </button>
+      <div className="lab-prompt-wrap">
+        <div className="lab-prompt-mode">
+          <span>提示词</span>
+          <button className={`lab-mode-toggle ${advanced ? 'on' : ''}`} onClick={() => setAdvanced(a => !a)}>
+            {advanced ? '高级模式（分模块）' : '简单模式'}
+          </button>
+          <span className="lab-mode-tip">
+            {advanced ? '填写模块 → 统一润色 → 确认完整提示词 → 生成' : '一句话描述，可点润色扩写'}
+          </span>
+        </div>
+        {advanced ? (
+          <>
+            <div className="lab-modules">
+              {IMAGE_MODULES.map(m => (
+                <label key={m.key} className="lab-module">
+                  <span className="lab-module-name">{m.name}</span>
+                  <textarea rows={2} value={modules[m.key]} placeholder={m.hint}
+                    onChange={e => setModules(prev => ({ ...prev, [m.key]: e.target.value }))} />
+                </label>
+              ))}
+            </div>
+            {finalPrompt && (
+              <div className="lab-final">
+                <div className="lab-final-head">完整提示词（确认或手改后生成）</div>
+                <textarea rows={3} value={finalPrompt} onChange={e => setFinalPrompt(e.target.value)} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="lab-prompt-box">
+            <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
+              placeholder="描述画面：主体 + 场景/环境 + 风格 + 光照 + 构图 + 质量要求，如：日出时分的薄雾峡谷上方的发光浮空城市，电影级写实，柔和金色光线"
+              rows={3} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate() }} />
+          </div>
+        )}
+        {(advanced ? finalPrompt : prompt).trim() && (
+          <div className="lab-revise">
+            <input value={instruction} onChange={e => setInstruction(e.target.value)}
+              placeholder="对当前提示词下修改指令，如：换成夜晚 / 光线改成冷色 / 加雪花"
+              onKeyDown={e => { if (e.key === 'Enter') revise() }} />
+            <button onClick={revise} disabled={!instruction.trim() || revising}>
+              {revising ? <><Loader2 size={12} className="spin" /> 修改中</> : '按指令修改'}
+            </button>
+          </div>
+        )}
+        <div className="lab-prompt-actions">
+          <button className="lab-polish" onClick={polish}
+            disabled={polishing || (advanced ? !Object.values(modules).some(v => v.trim()) : !prompt.trim())}>
+            {polishing ? <><Loader2 size={13} className="spin" /> 润色中</> : advanced ? '统一润色' : '润色'}
+          </button>
+          <button className="lab-primary" onClick={generate}
+            disabled={loading || !(advanced ? finalPrompt.trim() : prompt.trim())}>
+            {loading ? <><Loader2 size={14} className="spin" /> 生成中（数秒~几十秒）</> : '生成图片'}
+          </button>
+        </div>
       </div>
       <details className="lab-refs">
         <summary>参考图（图生图/多图合成，URL 每行一个，可留空）</summary>
