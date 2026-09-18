@@ -2,13 +2,18 @@
 
 文本流式 / 图片生成 / 视频任务（创建+轮询）。
 key 在后端 .env，前端只与本路由交互。
+生成结果落 lab_assets 表：前端切页/刷新后仍能展示，
+pending 视频任务可恢复轮询。
 """
 import json
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from app.core.database import get_db
+from app.models.lab_asset import LabAsset
 from app.services import agnes_service
 
 router = APIRouter()
@@ -33,9 +38,28 @@ class AgnesImageRequest(BaseModel):
     ref_images: list[str] | None = None  # 图生图/多图合成的参考图 URL
 
 
+def _asset_dict(a: LabAsset) -> dict:
+    return {
+        "id": a.id, "kind": a.kind, "model": a.model, "prompt": a.prompt,
+        "params": json.loads(a.params) if a.params else {},
+        "url": a.url, "video_id": a.video_id, "status": a.status,
+        "progress": a.progress, "error": a.error,
+        "created_at": a.created_at.isoformat() if a.created_at else None,
+    }
+
+
 @router.get("/agnes/models")
 async def list_free_models():
     return {"key_ok": agnes_service.key_configured(), "models": agnes_service.AGNES_FREE_MODELS}
+
+
+@router.get("/agnes/assets")
+async def list_assets(kind: str = "", limit: int = 60, db: Session = Depends(get_db)):
+    """生成历史：kind 为空返回全部（图片+视频）。"""
+    q = db.query(LabAsset).order_by(LabAsset.id.desc())
+    if kind in ("image", "video"):
+        q = q.filter(LabAsset.kind == kind)
+    return [_asset_dict(a) for a in q.limit(min(limit, 200)).all()]
 
 
 @router.post("/agnes/chat")
@@ -50,17 +74,26 @@ async def chat(req: AgnesChatRequest):
 
 
 @router.post("/agnes/images")
-async def image(req: AgnesImageRequest):
+async def image(req: AgnesImageRequest, db: Session = Depends(get_db)):
     allowed = {m["id"] for m in agnes_service.AGNES_FREE_MODELS["image"]}
     if req.model not in allowed:
         return {"error": f"仅支持免费图片模型: {sorted(allowed)}"}
+    asset = LabAsset(kind="image", model=req.model, prompt=req.prompt,
+                     params=json.dumps({"size": req.size, "ratio": req.ratio,
+                                        "refs": len(req.ref_images or [])}, ensure_ascii=False),
+                     status="completed", progress=100)
+    db.add(asset)
+    db.commit()  # 先落一行占位，失败也能看到记录
     try:
         result = await agnes_service.generate_image(
             req.model, req.prompt, req.size, req.ratio, req.ref_images)
-        return result
-    except Exception as e:  # 上游限流/参数错误原样透传
-        return {"error": agnes_service._err_detail(e) if isinstance(e, Exception) else str(e)} \
-            if not isinstance(e, RuntimeError) else {"error": str(e)}
+        asset.url, asset.b64 = result.get("url"), result.get("b64")
+        db.commit()
+        return {"id": asset.id, "url": asset.url, "b64": asset.b64}
+    except Exception as e:
+        asset.status, asset.error = "failed", str(e)[:500]
+        db.commit()
+        return {"error": str(e)[:300]}
 
 
 class AgnesVideoCreate(BaseModel):
@@ -68,16 +101,38 @@ class AgnesVideoCreate(BaseModel):
 
 
 @router.post("/agnes/videos")
-async def video_create(req: AgnesVideoCreate):
+async def video_create(req: AgnesVideoCreate, db: Session = Depends(get_db)):
     try:
-        return await agnes_service.create_video(req.payload)
+        d = await agnes_service.create_video(req.payload)
     except (ValueError, RuntimeError) as e:
         return {"error": str(e)}
+    vid = d.get("video_id") or d.get("id")
+    if vid:
+        asset = LabAsset(kind="video", model=req.payload.get("model", ""),
+                         prompt=req.payload.get("prompt", ""),
+                         params=json.dumps({k: v for k, v in req.payload.items()
+                                            if k not in ("model", "prompt")}, ensure_ascii=False),
+                         video_id=vid, status=d.get("status") or "pending",
+                         progress=d.get("progress") or 0)
+        db.add(asset)
+        db.commit()
+        d["asset_id"] = asset.id
+    return d
 
 
 @router.get("/agnes/videos/query")
-async def video_query(video_id: str, model: str = ""):
+async def video_query(video_id: str, model: str = "", db: Session = Depends(get_db)):
     try:
-        return await agnes_service.query_video(video_id, model)
+        d = await agnes_service.query_video(video_id, model)
     except RuntimeError as e:
         return {"error": str(e)}
+    # 同步落库：前端刷新后从列表接口拿最终状态，不必重查上游
+    asset = db.query(LabAsset).filter(LabAsset.video_id == video_id).first()
+    if asset and not d.get("error"):
+        asset.status = d.get("status") or asset.status
+        asset.progress = d.get("progress") or asset.progress
+        asset.url = d.get("url") or (d.get("metadata") or {}).get("url") or asset.url
+        if d.get("status") == "failed":
+            asset.error = str((d.get("error") or {}) if isinstance(d.get("error"), dict) else d.get("error"))[:500]
+        db.commit()
+    return d

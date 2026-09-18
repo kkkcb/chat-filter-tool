@@ -186,7 +186,17 @@ function ImageTab() {
   const [prompt, setPrompt] = useState('')
   const [refs, setRefs] = useState('') // 参考图 URL，每行一个
   const [loading, setLoading] = useState(false)
-  const [gallery, setGallery] = useState([]) // {url, prompt, model, size, ratio, ts}
+  const [gallery, setGallery] = useState([]) // 后端持久化的生成历史
+
+  // 历史从后端加载：切页/刷新后画廊仍在
+  useEffect(() => {
+    request('/agnes/assets?kind=image').then(list => {
+      setGallery(list.map(a => ({
+        id: a.id, url: a.url, prompt: a.prompt, model: a.model,
+        size: a.params?.size, ratio: a.params?.ratio,
+      })))
+    }).catch(() => {})
+  }, [])
 
   const generate = async () => {
     if (!prompt.trim() || loading) return
@@ -200,7 +210,7 @@ function ImageTab() {
       if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
       const url = d.url || (d.b64 ? `data:image/png;base64,${d.b64}` : null)
       if (!url) { toast('未返回图片', 'error'); return }
-      setGallery(g => [{ url, prompt: prompt.trim(), model, size, ratio, ts: Date.now() }, ...g])
+      setGallery(g => [{ id: d.id || Date.now(), url, prompt: prompt.trim(), model, size, ratio }, ...g])
     } catch (e) {
       toast(e?.message || '生成失败', 'error')
     } finally {
@@ -237,7 +247,7 @@ function ImageTab() {
       {gallery.length > 0 && (
         <div className="lab-gallery">
           {gallery.map(g => (
-            <figure key={g.ts} className="lab-figure">
+            <figure key={g.id} className="lab-figure">
               <a href={g.url} target="_blank" rel="noreferrer"><img src={g.url} alt={g.prompt} loading="lazy" /></a>
               <figcaption>
                 <span className="lab-fig-meta">{g.model.replace('agnes-image-', '')} · {g.size} · {g.ratio}</span>
@@ -273,6 +283,16 @@ function VideoTab() {
   const [tasks, setTasks] = useState([]) // {video_id, model, prompt, status, progress, url, error}
   const isV25 = model === 'agnes-video-2.5-flash'
 
+  // 历史任务从后端加载：切页/刷新后仍在；pending 的自动进入下方轮询
+  useEffect(() => {
+    request('/agnes/assets?kind=video').then(list => {
+      setTasks(list.map(a => ({
+        video_id: a.video_id, model: a.model, prompt: a.prompt,
+        status: a.status, progress: a.progress, url: a.url, error: a.error,
+      })))
+    }).catch(() => {})
+  }, [])
+
   // 轮询进行中的任务（3s 一次）
   const poll = useCallback(async () => {
     const active = tasks.filter(t => !['completed', 'failed'].includes(t.status))
@@ -280,9 +300,14 @@ function VideoTab() {
     for (const t of active) {
       try {
         const d = await request(`/agnes/videos/query?video_id=${encodeURIComponent(t.video_id)}&model=${encodeURIComponent(t.model)}`)
-        if (d.error) { setTasks(prev => prev.map(p => p.video_id === t.video_id ? { ...p, status: 'failed', error: d.error } : p)); continue }
+        // 轮询请求本身失败（免费档限流 429/网络抖动）≠ 任务失败：
+        // 跳过本轮，不动状态继续等下一轮
+        if (d.error) continue
+        const errMsg = typeof d.error === 'object' ? (d.error?.message || '') : (d.error || '')
         setTasks(prev => prev.map(p => p.video_id === t.video_id
-          ? { ...p, status: d.status || p.status, progress: d.progress ?? p.progress, url: d.url || d.metadata?.url || p.url } : p))
+          ? { ...p, status: d.status || p.status, progress: d.progress ?? p.progress,
+              url: d.url || d.metadata?.url || p.url,
+              error: d.status === 'failed' ? (errMsg || '生成失败') : p.error } : p))
       } catch { /* 单次失败继续 */ }
     }
   }, [tasks])

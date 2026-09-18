@@ -25,7 +25,7 @@ def get_db():
 
 def init_db():
     """创建所有表并重建全文索引"""
-    from app.models import material, conversation, note  # noqa: F401
+    from app.models import material, conversation, note, lab_asset  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
     # 轻量迁移：已有库补 notes.category 列（create_all 不会给现存表加列）
