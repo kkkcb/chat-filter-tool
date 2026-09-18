@@ -171,6 +171,15 @@
 }
 .lab-revise button:hover:not(:disabled) { background:var(--accent-light); }
 .lab-revise button:disabled { opacity:.5; cursor:not-allowed; }
+.lab-revise.in-card { margin-top:8px; }
+
+/* 任务卡上的"改提示词"入口 */
+.lab-task-revise-btn {
+  border:none; background:none; cursor:pointer; padding:2px 0;
+  font-size:11px; color:var(--text-light); font-family:var(--font);
+  text-decoration:underline dotted; transition:color var(--duration-fast) var(--ease);
+}
+.lab-task-revise-btn:hover { color:var(--accent); }
 .lab-prompt-wrap .lab-prompt-actions { flex-direction:row; justify-content:flex-end; }
 
 .lab-seconds { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); }

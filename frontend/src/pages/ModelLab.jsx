@@ -291,6 +291,9 @@ function VideoTab() {
   const [finalPrompt, setFinalPrompt] = useState('') // 润色后的确认区（可手改）
   const [instruction, setInstruction] = useState('')  // 自然语言修改指令
   const [revising, setRevising] = useState(false)
+  // 历史任务卡的指定性润色：reviseFor 打开哪张卡的指令行
+  const [reviseFor, setReviseFor] = useState(null)
+  const [taskInstruction, setTaskInstruction] = useState('')
   const [firstFrame, setFirstFrame] = useState('')
   const [lastFrame, setLastFrame] = useState('')
   const [refImgs, setRefImgs] = useState('')
@@ -393,6 +396,31 @@ function VideoTab() {
         else setPrompt(d.polished)
         setInstruction('')
         toast('已按指令修改，确认后再生成', 'success')
+      }
+    } catch (e) {
+      toast(e?.message || '修改失败', 'error')
+    } finally {
+      setRevising(false)
+    }
+  }
+
+  // 历史任务卡：对该卡的提示词下指令修订，结果进高级模式确认区
+  const reviseTask = async (task) => {
+    if (!taskInstruction.trim() || !task.prompt || revising) return
+    setRevising(true)
+    try {
+      const d = await request('/agnes/revise-video-prompt', {
+        method: 'POST',
+        body: JSON.stringify({ prompt: task.prompt, instruction: taskInstruction.trim() }),
+      })
+      if (d.error) { toast(d.error.slice(0, 120), 'error'); return }
+      if (d.polished) {
+        setAdvanced(true)
+        setFinalPrompt(d.polished)
+        setReviseFor(null)
+        setTaskInstruction('')
+        toast('已修订到确认区，可再改或直接生成', 'success')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
       }
     } catch (e) {
       toast(e?.message || '修改失败', 'error')
@@ -570,6 +598,20 @@ function VideoTab() {
               </span>
             </div>
             <div className="lab-task-prompt">{t.prompt}</div>
+            <button className="lab-task-revise-btn" onClick={() => {
+              setReviseFor(reviseFor === t.video_id ? null : t.video_id)
+              setTaskInstruction('')
+            }}>改提示词</button>
+            {reviseFor === t.video_id && (
+              <div className="lab-revise in-card">
+                <input value={taskInstruction} onChange={e => setTaskInstruction(e.target.value)}
+                  placeholder="对这个视频的提示词下指令，如：镜头换成航拍 / 换成夜晚场景"
+                  onKeyDown={e => { if (e.key === 'Enter') reviseTask(t) }} />
+                <button onClick={() => reviseTask(t)} disabled={!taskInstruction.trim() || revising}>
+                  {revising ? <><Loader2 size={12} className="spin" /> 修改中</> : '按指令修改'}
+                </button>
+              </div>
+            )}
             {active && (
               <div className="lab-progress"><div style={{ width: `${finer || 3}%` }} /></div>
             )}
