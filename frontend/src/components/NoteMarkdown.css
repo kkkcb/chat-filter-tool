@@ -57,8 +57,19 @@
 
 /* Mermaid 图表面板保持 ICE 卡片外观（github 样式不含此容器） */
 .pkb-view-content.markdown-body .note-diagram {
-  margin: 16px 0 8px; padding: 16px; overflow-x: auto;
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--bg-card); text-align: center;
+  margin: 16px 0 8px; padding: 18px; overflow-x: auto;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: linear-gradient(180deg, #FFFDF9 0%, #FFFBF2 100%);
+  text-align: center;
 }
 .pkb-view-content.markdown-body .note-diagram svg { display: block; max-width: 100%; height: auto; margin: auto; }
+/* mermaid 细节打磨：节点圆角 + 分组圆角 + 阶段标题 */
+.pkb-view-content.markdown-body .note-diagram svg .node rect,
+.pkb-view-content.markdown-body .note-diagram svg .node polygon { rx: 10px; }
+.pkb-view-content.markdown-body .note-diagram svg .cluster rect {
+  rx: 14px; fill: #FFFBF2 !important; stroke: #FDBA74 !important; stroke-width: 1.5px;
+}
+.pkb-view-content.markdown-body .note-diagram svg .cluster .cluster-label {
+  font-weight: 700; font-size: 14px;
+}
+.pkb-view-content.markdown-body .note-diagram svg .node .label { font-size: 13px; }
