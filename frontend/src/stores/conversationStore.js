@@ -51,10 +51,17 @@ export const useConversationStore = create((set, get) => ({
   },
 
   removeConversation: async (id) => {
+    const wasActive = get().activeId === id
     set(state => ({
       conversations: state.conversations.filter(c => c.id !== id),
-      activeId: state.activeId === id ? null : state.activeId,
+      activeId: wasActive ? null : state.activeId,
     }))
+    // 删的是当前打开的会话：右侧消息区一并清空，回到新对话空态
+    // （否则列表没了、消息还挂着已删会话的内容）
+    if (wasActive) {
+      const { useChatStore } = await import('./chatStore')
+      useChatStore.getState().clearMessages()
+    }
     try {
       await deleteConversation(id)
     } catch {}

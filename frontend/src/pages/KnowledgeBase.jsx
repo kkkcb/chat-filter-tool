@@ -222,6 +222,10 @@ export default function KnowledgeBase() {
       useChatStore.setState({ messages: mapped.slice(-FIRST) })
       let end = mapped.length - FIRST
       const fill = () => {
+        // 所有权检查：消息区已被清空（删除会话）或切到别的会话时，
+        // 停止补批——否则闭包里的旧 mapped 会把已删内容填回来
+        const cur = useChatStore.getState().messages
+        if (!cur.length || !mapped.some(m => m.id === cur[cur.length - 1]?.id)) return
         const start = Math.max(0, end - BATCH)
         useChatStore.setState(state => ({ messages: [...mapped.slice(start, end), ...state.messages] }))
         end = start
