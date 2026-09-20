@@ -45,6 +45,10 @@ export default function KnowledgeBase() {
   const [palette, setPalette] = useState(null) // 'slash' | 'at' | null
   const [readingMode, setReadingMode] = useState(false) // 全屏阅读
   const [historyCollapsed, setHistoryCollapsed] = useState(false) // 侧栏收起
+  // 手机端默认收起对话历史（展开时 CSS 会变成抽屉覆盖，不挤内容）
+  useEffect(() => {
+    if (window.matchMedia('(max-width:768px)').matches) setHistoryCollapsed(true)
+  }, [])
   const [nodePreview, setNodePreview] = useState(null) // 导航点悬停预览 {text,x,y}
   const [bookmarks, setBookmarks] = useState([]) // 一次性标记 [{msgId, label}]
   const [askPanel, setAskPanel] = useState(null) // {quote, question, messages: [], sending}
