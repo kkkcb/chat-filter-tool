@@ -851,3 +851,13 @@
   white-space:nowrap; z-index:50; pointer-events:none;
 }
 .ctx-ring-wrap:hover .ctx-ring-tip { display:block; }
+
+/* 输出风格选择器（工具栏，与 think-toggle 同排） */
+.think-style-select {
+  border:1px solid var(--border); border-radius:14px; background:var(--bg-card);
+  font-size:12px; font-family:var(--font); color:var(--text-muted);
+  padding:5px 10px; outline:none; cursor:pointer;
+  transition:all var(--duration-fast) var(--ease);
+}
+.think-style-select:hover { border-color:var(--accent); color:var(--accent); }
+.think-style-select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }

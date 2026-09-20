@@ -12,6 +12,30 @@ from app.services.note_service import NoteService
 from app.services.web_tools import WEB_TOOLS, execute_web_tool
 
 
+
+# 输出风格库（借鉴 Claude Code output-style 插件的会话级输出约束）
+OUTPUT_STYLES = {
+    "explain": (
+        "科普讲解型：面向公众号普通读者。每个概念先用一句大白话说清本质，"
+        "再配一个生活化类比，最后给出「为什么重要」。术语首次出现必须解释，"
+        "节奏循序渐进，读完有获得感。"
+    ),
+    "teach": (
+        "循序教学型：像老师带学生。先抛一个引导问题，分步骤展开，每步讲清"
+        "「做什么、为什么、易错点」；关键节点给出小结和自测问题，结尾布置"
+        "一个小练习。"
+    ),
+    "concise": (
+        "简洁高效型：直给结论，不做铺垫。优先用要点清单和短句；每个要点"
+        "一行说透；没有废话和客套；需要展开时用折叠式的简短补充。"
+    ),
+    "brainstorm": (
+        "创作脑暴型：发散优先。围绕主题给出多个不同角度的方案/选题/标题，"
+        "包含一个反常规的意外角度；每个方案配一句卖点说明；最后标注你个人"
+        "最推荐哪个及理由。"
+    ),
+}
+
 class ChatService:
     """对话编排：根据输入类型分发到不同处理逻辑"""
 
@@ -90,7 +114,7 @@ class ChatService:
             "entry": entry,
         }
 
-    async def handle_message_stream(self, message: str = "", image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True, files: list | None = None, use_web: bool = False):
+    async def handle_message_stream(self, message: str = "", image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True, files: list | None = None, use_web: bool = False, style: str = ""):
         """流式版统一入口 — yield (event_type, data_dict)"""
         if image:
             # 图片不支持流式，降级为普通调用
@@ -123,7 +147,7 @@ class ChatService:
                 message = message + "\n\n以下是用户上传的文件内容：\n\n" + "\n\n".join(file_parts)
 
         # 普通对话走流式
-        async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag, use_web=use_web):
+        async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag, use_web=use_web, style=style):
             yield event
 
     def _build_rag(self, question: str) -> tuple[str, list]:
@@ -133,8 +157,8 @@ class ChatService:
         context = "\n\n".join(x for x in (mat_ctx, note_ctx) if x)
         return context, mat_cites + note_cites
 
-    def _build_messages(self, question: str, rag_context: str, history: list) -> list[dict]:
-        """组装完整 messages：system + 多轮历史 + 当前问题"""
+    def _build_messages(self, question: str, rag_context: str, history: list, style: str = "") -> list[dict]:
+        """组装完整 messages：system + 多轮历史 + 当前问题。style 为输出风格注入"""
         if not rag_context:
             system_content = (
                 "你是一个AI科普创作助手，帮助用户运营AI科普公众号。请结合用户知识库素材（如有）回答问题。\n"
@@ -156,6 +180,10 @@ class ChatService:
                 "4. 用户问某个技能/工具/理论时优先从知识库找依据；用户曾踩过的坑（笔记有记录）要主动提醒\n"
                 "5. 回答简洁有干货，适合中文表达"
             )
+        # 输出风格注入（借鉴 Claude Code output-style：会话级输出约束）
+        style_block = OUTPUT_STYLES.get(style)
+        if style_block:
+            system_content += f"\n\n【输出风格要求】\n{style_block}"
         messages = [{"role": "system", "content": system_content}]
         # 多轮历史（role/content 均已校验，见路由层 _load_history）
         messages.extend(history)
@@ -184,13 +212,13 @@ class ChatService:
             return ""
         return "用户在消息里显式引用了以下内容（优先依据它们回答）：\n\n" + "\n\n".join(parts)
 
-    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True, use_web: bool = False):
+    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True, use_web: bool = False, style: str = ""):
         """流式知识库对话（use_web=True 时模型可调用 web_fetch 工具抓网页）"""
         rag_context, citations = self._build_rag(question) if use_rag else ("", [])
         mention_ctx = self._resolve_mentions(question)
         if mention_ctx:
             rag_context = (rag_context + "\n\n" + mention_ctx).strip()
-        messages = self._build_messages(question, rag_context, history or [])
+        messages = self._build_messages(question, rag_context, history or [], style=style)
 
         # 工具提示注入 system（GLM 拿到 tools 规格，这里补充「何时该用」）
         # 原生 web_search 由智谱服务端执行（按次计费，费用很低），web_fetch 由本机执行
@@ -257,7 +285,7 @@ class ChatService:
     async def _handle_chat(self, question: str, history: list | None = None) -> dict:
         """知识库对话 — 自动检索相关素材并引用"""
         rag_context, citations = self._build_rag(question)
-        messages = self._build_messages(question, rag_context, history or [])
+        messages = self._build_messages(question, rag_context, history or [], style=style)
 
         reply = await llm_service.chat(messages)
 

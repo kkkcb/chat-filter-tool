@@ -16,11 +16,17 @@ export const useChatStore = create((set, get) => ({
   deepThinking: false,
   useRag: false, // 「引用知识库」开关：关=纯对话不带参考资料（默认），开=检索素材/笔记并引用
   useWeb: true, // 「联网抓取」开关：开=模型可按需调用 web_fetch 抓网页（默认开）
+  // 输出风格（借鉴 Claude Code output-style）：''=默认 explain=科普讲解 teach=循序教学 concise=简洁高效 brainstorm=创作脑暴
+  style: (() => { try { return localStorage.getItem('chat_output_style') || '' } catch { return '' } })(),
   lastSendParams: null, // 供 retry 复用（保留 conversationId/mode）
 
   toggleDeepThinking: () => set(state => ({ deepThinking: !state.deepThinking })),
   toggleUseRag: () => set(state => ({ useRag: !state.useRag })),
   toggleUseWeb: () => set(state => ({ useWeb: !state.useWeb })),
+  setOutputStyle: (style) => {
+    try { style ? localStorage.setItem('chat_output_style', style) : localStorage.removeItem('chat_output_style') } catch {}
+    set({ style })
+  },
 
   // 单句删除：从列表移除（有 messageId 的会同时已在服务端删除）
   removeMessage: (localId) => set(state => ({
@@ -62,7 +68,7 @@ export const useChatStore = create((set, get) => ({
       const resp = await fetch(`${API_PREFIX}/chat/stream`, {
         method: 'POST',
         headers: streamHeaders,
-        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, use_web: get().useWeb, conversation_id: conversationId || null, files: files || undefined }),
+        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, use_web: get().useWeb, style: get().style, conversation_id: conversationId || null, files: files || undefined }),
         signal: abortController.signal,
       })
 

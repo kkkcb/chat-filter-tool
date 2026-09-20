@@ -105,7 +105,7 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
     # 构建原始请求记录
     raw_request = json.dumps({
         "message": req.message, "image": "[base64 image]" if req.image else None,
-        "mode": req.mode, "thinking": req.thinking, "conversation_id": conv_id,
+        "mode": req.mode, "thinking": req.thinking, "style": req.style or "", "conversation_id": conv_id,
     }, ensure_ascii=False, indent=2)
 
     async def event_stream():
@@ -118,7 +118,7 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
             msg_data = None
 
             async for event_type, event_data in svc.handle_message_stream(
-                req.message, req.image, req.mode, req.thinking or False, history=history, use_rag=req.use_rag if req.use_rag is not None else True, files=[f.dict() for f in req.files] if req.files else None, use_web=req.use_web or False
+                req.message, req.image, req.mode, req.thinking or False, history=history, use_rag=req.use_rag if req.use_rag is not None else True, files=[f.dict() for f in req.files] if req.files else None, use_web=req.use_web or False, style=req.style or ""
             ):
                 if isinstance(event_data, (dict, list)):
                     payload_data = event_data

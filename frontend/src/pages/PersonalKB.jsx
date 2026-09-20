@@ -650,7 +650,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
   }
 
   return (
-    <div className="pkb-modal-overlay" onClick={onClose}>
+    <div className={`pkb-modal-overlay ${diffView ? 'polish-open' : ''}`} onClick={diffView ? undefined : onClose}>
       <div className={`pkb-modal ${fullscreen ? 'fullscreen' : ''}`} onClick={e => e.stopPropagation()}>
         <div className="pkb-modal-header">
           <span className="pkb-modal-title">
@@ -821,10 +821,10 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
         <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />
       )}
 
-      {/* AI 润色对比视图 */}
+      {/* AI 润色对比：右侧 dock 面板（笔记保持可见可编辑，润色完成自动挂出） */}
       {diffView && (
-        <div className="polish-overlay">
-          <div className="polish-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="polish-dock" onClick={(e) => e.stopPropagation()}>
+          <div className="polish-modal">
             <div className="polish-header">
               <span>
                 <Wand2 size={15} strokeWidth={2} /> 润色对比

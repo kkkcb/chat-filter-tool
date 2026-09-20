@@ -36,7 +36,7 @@ const VISION_MODES = [
 ]
 
 export default function KnowledgeBase() {
-  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage } = useChatStore()
+  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage, style: outputStyle, setOutputStyle } = useChatStore()
   const { selectedImage, selectedMode, setImage, setMode, clear } = useVisionStore()
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
@@ -714,6 +714,18 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                 <span className="think-switch-knob" />
               </span>
             </button>
+            <select
+              className="think-style-select"
+              value={outputStyle}
+              onChange={(e) => setOutputStyle(e.target.value)}
+              title="输出风格：切换回复的表达方式（下次提问生效）"
+            >
+              <option value="">默认风格</option>
+              <option value="explain">科普讲解</option>
+              <option value="teach">循序教学</option>
+              <option value="concise">简洁高效</option>
+              <option value="brainstorm">创作脑暴</option>
+            </select>
           </div>
         </div>
 

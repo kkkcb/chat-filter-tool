@@ -454,17 +454,23 @@
 }
 .pkb-md-polish:disabled { opacity:.6; cursor:wait; }
 
-/* 润色对比视图 */
-.polish-overlay {
-  position:fixed; inset:0; z-index:1400; background:rgba(0,0,0,.5);
-  display:flex; align-items:center; justify-content:center;
-  animation:agateFade .15s ease;
+/* 润色对比：右侧 dock 面板（IDE 式侧挂，笔记保持可见） */
+.polish-dock {
+  position:fixed; top:0; right:0; bottom:0; z-index:1400;
+  width:min(600px, 48vw);
+  background:var(--bg-app); border-left:1px solid var(--border-dark);
+  box-shadow:-12px 0 40px rgba(0,0,0,.18);
+  display:flex; padding:0;
+  animation:polishSlideIn .22s var(--ease);
 }
+@keyframes polishSlideIn { from { transform:translateX(40px); opacity:0; } to { transform:none; opacity:1; } }
+/* 面板挂出时：笔记弹窗左移让位并收窄（避免与面板重叠） */
+.pkb-modal-overlay.polish-open { justify-content:flex-start; padding-left:12px; }
+.pkb-modal-overlay.polish-open .pkb-modal { max-width:calc(100vw - min(600px,48vw) - 36px); }
 .polish-modal {
-  width:92vw; max-width:1100px; height:86vh;
-  background:var(--bg-card); border-radius:14px;
+  flex:1; height:100vh; border-radius:0;
+  background:var(--bg-card);
   display:flex; flex-direction:column; overflow:hidden;
-  box-shadow:var(--shadow-lg); animation:pkbSlideUp .2s var(--ease);
 }
 .polish-header {
   display:flex; align-items:center; justify-content:space-between;
