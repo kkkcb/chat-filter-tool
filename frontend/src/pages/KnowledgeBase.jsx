@@ -36,7 +36,7 @@ const VISION_MODES = [
 ]
 
 export default function KnowledgeBase() {
-  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage, style: outputStyle, setOutputStyle } = useChatStore()
+  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage, style: outputStyle, setOutputStyle, historyLoading } = useChatStore()
   const { selectedImage, selectedMode, setImage, setMode, clear } = useVisionStore()
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
@@ -198,20 +198,36 @@ export default function KnowledgeBase() {
   const handleSelectConv = async (id) => {
     userScrolledUp.current = false // 切换对话 → 恢复自动跟随
     clearMessages()
+    useChatStore.setState({ historyLoading: true })
     checkConvNotes(id)
     const detail = await selectConversation(id)
+    useChatStore.setState({ historyLoading: false })
     if (detail?.messages?.length) {
-      // 一次性写入全部历史消息，避免逐条 setState 触发多次渲染
-      useChatStore.setState(state => ({
-        messages: detail.messages.map(m => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          reasoning: m.reasoning,
-          messageType: m.message_type,
-          messageId: m.id,
-        })),
+      const mapped = detail.messages.map(m => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        reasoning: m.reasoning,
+        messageType: m.message_type,
+        messageId: m.id,
       }))
+      // 分批挂载：长会话一次性渲染会同步跑完全部 markdown
+      // （hljs/KaTeX），主线程冻结数秒——先出最新的 12 条（视口内），
+      // 更早的历史分批补到顶部，渲染摊开不卡顿
+      const FIRST = 12, BATCH = 16
+      if (mapped.length <= FIRST + BATCH) {
+        useChatStore.setState({ messages: mapped })
+        return
+      }
+      useChatStore.setState({ messages: mapped.slice(-FIRST) })
+      let end = mapped.length - FIRST
+      const fill = () => {
+        const start = Math.max(0, end - BATCH)
+        useChatStore.setState(state => ({ messages: [...mapped.slice(start, end), ...state.messages] }))
+        end = start
+        if (end > 0) setTimeout(fill, 0) // 让出主线程，页面可交互
+      }
+      setTimeout(fill, 0)
     }
   }
 
@@ -762,7 +778,13 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           </div>
         )}
         <div className="chat-page-messages" ref={messagesRef} onScroll={handleMessagesScroll}>
-          {!hasChat ? (
+          {historyLoading ? (
+            <div className="chat-history-skeleton">
+              <div className="chs-row user" /><div className="chs-row bot" /><div className="chs-row user short" />
+              <div className="chs-row bot short" /><div className="chs-row user" /><div className="chs-row bot" />
+              <div className="chs-hint">加载对话历史…</div>
+            </div>
+          ) : !hasChat ? (
             <div className="chat-welcome">
               <Sparkles size={40} strokeWidth={1.5} />
               <p>问点什么？</p>

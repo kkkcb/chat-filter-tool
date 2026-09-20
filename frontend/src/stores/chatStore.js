@@ -11,6 +11,7 @@ const RENDER_INTERVAL = 100
 
 export const useChatStore = create((set, get) => ({
   messages: [],
+  historyLoading: false, // 切换会话加载历史中（前端显示骨架而非空欢迎页）
   isSending: false,
   abortController: null,
   deepThinking: false,

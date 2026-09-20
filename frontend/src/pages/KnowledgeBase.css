@@ -861,3 +861,12 @@
 }
 .think-style-select:hover { border-color:var(--accent); color:var(--accent); }
 .think-style-select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+
+/* 会话历史加载骨架（切换会话时替代空欢迎页，消除"新开一页"错觉） */
+.chat-history-skeleton { padding:32px 24px; display:flex; flex-direction:column; gap:18px; }
+.chs-row { border-radius:12px; background:linear-gradient(90deg, var(--bg-muted) 25%, var(--bg-card) 50%, var(--bg-muted) 75%); background-size:200% 100%; animation:chsShimmer 1.2s infinite; }
+.chs-row.user { align-self:flex-end; width:38%; height:36px; border-radius:14px 14px 4px 14px; }
+.chs-row.bot { width:76%; height:88px; }
+.chs-row.short { width:52%; height:52px; }
+.chs-hint { text-align:center; font-size:12px; color:var(--text-light); padding-top:6px; }
+@keyframes chsShimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
