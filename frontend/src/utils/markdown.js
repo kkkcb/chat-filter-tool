@@ -142,7 +142,7 @@ function _renderFence(lang, code) {
       inner = escapeHtml(code)
     }
     html = (
-      `<div class="code-block"><button class="code-copy-btn">复制代码</button>`
+      `<div class="code-block${lang === 'mermaid' ? ' mermaid-source' : ''}"><button class="code-copy-btn">复制代码</button>`
       + `<pre class="hljs"><code class="language-${lang}">${inner}</code></pre></div>`
     )
     if (_fenceCache.size > _FENCE_CACHE_MAX) _fenceCache.clear()

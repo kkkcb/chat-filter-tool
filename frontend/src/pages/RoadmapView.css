@@ -33,6 +33,13 @@
 
 .rv-body { flex:1; overflow-y:auto; padding:18px 24px 32px; }
 .rv-body .pkb-view-content { max-width:1080px; margin:0 auto; }
+/* 路线页隐藏 mermaid 源码块（矢量图即全部，源码冗余且丑） */
+.rv-body .code-block.mermaid-source,
+.rv-preview .code-block.mermaid-source { display:none; }
+.rv-body .note-diagram svg, .rv-preview .note-diagram svg { cursor:zoom-in; }
+/* 矢量图横向铺满容器（矢量缩放不失真），一图看完 */
+.rv-body .note-diagram svg,
+.rv-preview .note-diagram svg { width:100%; height:auto; max-width:none; }
 
 .rv-editor { flex:1; display:flex; flex-direction:column; padding:16px 24px; gap:10px; overflow:hidden; }
 .rv-editor textarea {
@@ -44,3 +51,9 @@
 .rv-editor-btns { display:flex; justify-content:flex-end; gap:8px; }
 .spin { animation:rvSpin 1s linear infinite; }
 @keyframes rvSpin { to { transform:rotate(360deg); } }
+
+/* 点击全屏查看矢量图（原尺寸可读，滚轮缩放） */
+.rv-zoom { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.82); display:flex; align-items:center; justify-content:center; }
+.rv-zoom-inner { max-width:96vw; max-height:92vh; overflow:auto; background:var(--bg-card); border-radius:12px; padding:20px; }
+.rv-zoom-inner svg { max-width:none; width:auto; height:auto; }
+.rv-zoom-hint { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.75); font-size:12px; }

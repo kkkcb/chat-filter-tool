@@ -22,6 +22,18 @@ export default function RoadmapView() {
   const [revised, setRevised] = useState('')     // 修订预览稿
   const [saving, setSaving] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)  // 重挂 NoteMarkdown 触发 mermaid 重渲
+  const [zoomSvg, setZoomSvg] = useState('')      // 全屏查看的矢量图 outerHTML
+
+  // 点击图表面板 → 全屏原尺寸查看（缩放图太小读不清时用）
+  const openZoom = (e) => {
+    const svg = e.currentTarget.querySelector('svg')
+    if (!svg) return
+    // 克隆进 overlay 的 svg 需要 width：有 viewBox 无 width 时按 0 宽渲染
+    const clone = svg.cloneNode(true)
+    const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/)
+    if (vb.length === 4) clone.setAttribute('width', Math.round(parseFloat(vb[2])))
+    setZoomSvg(clone.outerHTML)
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -117,9 +129,17 @@ export default function RoadmapView() {
           </div>
         </div>
       ) : (
-        <div className="rv-body">
-          <NoteMarkdown key={'roadmap-' + reloadKey + note.content.length} content={note.content} onImageOpen={() => {}} />
-        </div>
+        <>
+          <div className="rv-body">
+            <div onClick={openZoom}><NoteMarkdown key={'roadmap-' + reloadKey + note.content.length} content={note.content} onImageOpen={() => {}} /></div>
+          </div>
+          {zoomSvg && (
+            <div className="rv-zoom" onClick={() => setZoomSvg('')}>
+              <div className="rv-zoom-inner" dangerouslySetInnerHTML={{ __html: zoomSvg }} onClick={e => e.stopPropagation()} />
+              <div className="rv-zoom-hint">点击空白处关闭 · 滚动查看细节</div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
