@@ -660,7 +660,7 @@ function NoteModal({ modal, notes, onClose, onEdit }) {
           </span>
           {editing && lastSavedAt && (
             <span className="pkb-autosave-badge">
-              <Check size={11} strokeWidth={2.4} /> 已自动保存 {lastSavedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+              <Check size={11} strokeWidth={2.4} /> 已自动保存 {lastSavedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
           )}
           <div className="pkb-modal-actions">
