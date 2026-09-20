@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core.database import get_db
+from app.models.note import Note
 from app.services.note_service import NoteService
 from app.models.conversation import Conversation
 from app.schemas.note import NoteCreate, NoteUpdate, SummarizeRequest
@@ -152,6 +153,29 @@ async def note_from_conversation(req: SummarizeRequest, db: Session = Depends(ge
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
+
+
+class NoteReviseRequest(BaseModel):
+    note_id: int
+    instruction: str
+
+
+@router.post("/notes/revise")
+async def revise_note(req: NoteReviseRequest, db: Session = Depends(get_db)):
+    """markdown 笔记的自然语言修订（路线图等；返回修订稿，不动原笔记）。"""
+    note = db.query(Note).filter(Note.id == req.note_id).first()
+    if not note:
+        raise HTTPException(404, "笔记不存在")
+    from app.services.llm_service import llm_service
+    from app.core.tasklog import log_task
+    import time as _t
+    t0 = _t.monotonic()
+    revised = await llm_service.revise_markdown(note.content or "", req.instruction)
+    log_task("note.revise", note_id=req.note_id, instruction=req.instruction[:80],
+             out_len=len(revised or ""), latency_ms=int((_t.monotonic() - t0) * 1000))
+    if not revised:
+        raise HTTPException(502, "修订失败，请稍后重试")
+    return {"revised": revised}
 
 @router.put("/notes/{note_id}")
 async def update_note(note_id: int, req: NoteUpdate, db: Session = Depends(get_db)):

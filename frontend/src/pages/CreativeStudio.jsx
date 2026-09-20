@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { Lightbulb, Map, PenLine, Files } from 'lucide-react'
-import InspireWorkshop from './InspireWorkshop'
-import ArticleRoadmap from './ArticleRoadmap'
+import { Map, PenLine, Files } from 'lucide-react'
+import RoadmapView from './RoadmapView'
 import WritingStudio from './WritingStudio'
 import Library from './Library'
 import './CreativeStudio.css'
 
 const TABS = [
-  { key: 'inspire', Icon: Lightbulb, label: '灵感' },
   { key: 'roadmap', Icon: Map, label: '路线' },
   { key: 'writing', Icon: PenLine, label: '写作' },
   { key: 'materials', Icon: Files, label: '素材' },
@@ -31,8 +29,7 @@ export default function CreativeStudio() {
         ))}
       </div>
       <div className="cs-content">
-        {tab === 'inspire' && <InspireWorkshop />}
-        {tab === 'roadmap' && <ArticleRoadmap />}
+          {tab === 'roadmap' && <RoadmapView />}
         {tab === 'writing' && <WritingStudio />}
         {tab === 'materials' && <Library />}
       </div>

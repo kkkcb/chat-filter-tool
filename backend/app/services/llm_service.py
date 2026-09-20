@@ -209,6 +209,27 @@ class LLMService:
 
         return parsed
 
+
+    async def revise_markdown(self, content: str, instruction: str) -> str | None:
+        """markdown 文档的自然语言修订（路线图等结构化文档）。
+
+        约束核心：只改指令涉及部分；mermaid 代码块必须保持语法有效
+        （节点/子图/箭头），否则前端矢量图渲染会失败。
+        """
+        system = """你是 markdown 结构化文档的编辑。用户给出现有文档和一条自然语言修改指令。
+
+规则：
+- 只改动指令涉及的部分，其余内容原样保留
+- 文档中的 ```mermaid 代码块是矢量图的源码：修改其中内容时必须保持 mermaid 语法有效（subgraph/节点/箭头/引号配对），改完的图必须能渲染
+- 用户的指令是口语化的（如"把第3篇挪到阶段一""加一个新阶段""换个标题"），准确转译为文档修改
+- 输出只有修订后的完整文档本身，不要解释、不要代码围栏包裹全文
+- 保持原有 markdown 层级结构（#/##/###/列表）不变，除非指令明确要求调整结构"""
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"【现有文档】\n{content}\n\n【修改指令】\n{instruction}"},
+        ]
+        return await self._call(messages, model=self.polish_model, temperature=0.3, timeout=120, retries=1)
+
     async def polish_note(self, content: str, mode: str = "full") -> str | None:
         """笔记润色 — full=整篇整理结构；selection=仅选中片段（严格忠于原文）"""
         if mode == "selection":
