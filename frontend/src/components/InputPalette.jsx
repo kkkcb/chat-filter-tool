@@ -14,6 +14,7 @@ export const SLASH_COMMANDS = [
   { cmd: '/引用知识库', desc: '切换回复时检索素材/笔记并引用' },
   { cmd: '/联网', desc: '切换联网抓取（模型可按需抓网页正文）' },
   { cmd: '/新对话', desc: '开启一个新对话' },
+  { cmd: '/压缩', desc: '压缩当前对话上下文（结构化检查点，长对话防失忆）' },
 ]
 
 export default function InputPalette({

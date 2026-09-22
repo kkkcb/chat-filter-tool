@@ -13,6 +13,10 @@ class Conversation(Base):
     position = Column(Integer, default=0)
     created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
     updated_at = Column(Text, default=lambda: datetime.now().isoformat())
+    # 上下文压缩（借鉴 deepseek-harness compaction 策略）：
+    # LLM 生成的结构化检查点 + 已覆盖到的消息边界
+    compacted_summary = Column(Text, nullable=True)
+    compacted_upto = Column(Integer, nullable=True)
 
 
 class Message(Base):

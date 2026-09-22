@@ -37,6 +37,13 @@ def init_db():
             conn.commit()
 
         # lab_assets 补上游数据列（老库升级）
+        # conversations 补压缩字段（dsh 式上下文压缩）
+        conv_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(conversations)"))]
+        for col_ddl in ("ALTER TABLE conversations ADD COLUMN compacted_summary TEXT",
+                        "ALTER TABLE conversations ADD COLUMN compacted_upto INTEGER"):
+            if col_ddl.split("ADD COLUMN ")[1].split()[0] not in conv_cols:
+                conn.execute(text(col_ddl))
+                conn.commit()
         lab_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(lab_assets)"))]
         for col_ddl in (
             "ALTER TABLE lab_assets ADD COLUMN upstream_created_at INTEGER",

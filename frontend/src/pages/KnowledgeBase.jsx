@@ -345,6 +345,19 @@ export default function KnowledgeBase() {
     detectPalette(e.target.value)
   }
 
+  // /压缩：LLM 结构化检查点压缩当前会话上下文（dsh compaction 策略）
+  const handleCompact = async () => {
+    if (!activeId) { toast('当前没有打开的对话', 'error'); return }
+    toast('正在生成检查点（约 10~30 秒）…', 'info')
+    try {
+      const d = await request(`/conversations/${activeId}/compact`, { method: 'POST', body: '{}' })
+      if (d.error) { toast(d.error, 'error'); return }
+      toast(`已压缩：${Math.round(d.summary_len / 100) / 10} 百字检查点覆盖 ${d.upto} 号前的消息`, 'success')
+    } catch (e) {
+      toast(e?.message || '压缩失败', 'error')
+    }
+  }
+
   const pickSlash = (item) => {
     setPalette(null); setInput('')
     const c = item.cmd
@@ -353,6 +366,7 @@ export default function KnowledgeBase() {
     else if (c === '/引用知识库') { toggleUseRag(); toast(useRag ? '已关闭知识库引用' : '已开启知识库引用', 'info') }
     else if (c === '/联网') { toggleUseWeb(); toast(useWeb ? '已关闭联网抓取' : '已开启联网抓取', 'info') }
     else if (c === '/新对话') { handleNewConv() }
+    else if (c === '/压缩') { handleCompact() }
   }
 
   const pickAt = (item) => {

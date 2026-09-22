@@ -25,42 +25,13 @@ HISTORY_LIMIT = 10
 
 
 def _load_history(db: Session, conv_id: int, before_id: int | None = None, limit: int = HISTORY_LIMIT) -> list[dict]:
-    """加载对话历史（时间正序），供多轮对话上下文使用。
+    """加载对话历史（带 dsh 式检查点压缩）。
 
-    before_id 用于排除当前这条刚保存的用户消息。
-    跳过空消息（如仅图片、链接卡片），避免噪音进入上下文。
-    pi 式上下文压缩：消息很多时，较早的消息每条截断正文（保留要点），
-    最近 12 条保全文——长对话不撑爆窗口也不丢最新细节。
+    有压缩检查点时：检查点 + 最近 N 条全文（替代旧的每条硬截断）；
+    无检查点时保持原逻辑。详见 services/compaction_service.py。
     """
-    q = (
-        db.query(Message)
-        .filter(Message.conversation_id == conv_id)
-        .order_by(Message.id.desc())
-    )
-    if before_id is not None:
-        q = q.filter(Message.id < before_id)
-    msgs = q.limit(limit).all()
-
-    history = []
-    for m in reversed(msgs):
-        if m.role in ("user", "assistant") and (m.content or "").strip():
-            history.append({"role": m.role, "content": m.content})
-
-    # 压缩：超过 16 条时，前面的每条截到 160 字（约 1/3 token），近 12 条全文
-    RECENT_FULL = 12
-    if len(history) > RECENT_FULL + 4:
-        compressed = []
-        for i, h in enumerate(history):
-            if i >= len(history) - RECENT_FULL:
-                compressed.append(h)
-            else:
-                text = h["content"]
-                if len(text) > 160:
-                    compressed.append({"role": h["role"], "content": text[:160] + "…（已压缩）"})
-                else:
-                    compressed.append(h)
-        history = compressed
-    return history
+    from app.services.compaction_service import load_history_with_checkpoint
+    return load_history_with_checkpoint(db, conv_id, before_id, limit)
 
 
 @router.post("/chat", response_model=ChatResponse)

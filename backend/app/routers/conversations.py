@@ -66,6 +66,13 @@ async def create_conversation(req: CreateConversationRequest, db: Session = Depe
     )
 
 
+@router.post("/conversations/{conv_id}/compact")
+async def compact_conversation(conv_id: int, db: Session = Depends(get_db)):
+    """LLM 结构化检查点压缩会话上下文（借鉴 deepseek-harness compaction 策略）。"""
+    from app.services.compaction_service import compact_conversation as run
+    return await run(db, conv_id)
+
+
 @router.get("/conversations/{conv_id}", response_model=ConversationDetail)
 async def get_conversation(conv_id: int, db: Session = Depends(get_db)):
     """获取对话详情（含所有消息；不含 raw 请求/响应大字段，双击消息时按需拉取）"""
