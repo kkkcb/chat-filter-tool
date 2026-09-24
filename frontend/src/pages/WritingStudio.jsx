@@ -80,15 +80,23 @@ ${a.metaphor}
 
   const callAI = async (action) => {
     setAiLoading(true); setAiResult(''); setAiAction(action)
+    // 路线文章参考块（选了才有）
+    const articleRef = selectedArticle
+      ? `主题：${selectedArticle.title}\n核心概念：${selectedArticle.concepts.join('、')}\n比喻：${selectedArticle.metaphor}\n迁移任务：${selectedArticle.task}`
+      : '（未选择路线文章）'
     const prompts = {
       polish: `请润色以下文章片段，保持科普风格，让语言更生动适合大众阅读：\n\n${content.substring(0, 2000)}`,
-      outline: `请为以下主题生成一个详细的写作大纲，包含开头hook、3-5个核心段落、结尾：\n\n主题：${title || selectedArticle?.title}\n核心概念：${selectedArticle?.concepts.join('、') || ''}\n比喻：${selectedArticle?.metaphor || ''}`,
+      // 大纲 = 第一步：读取页面全部信息（标题+正文+路线参考），产出后自动补充到正文末尾
+      outline: `请基于以下写作页面的全部信息，生成一份详细的写作大纲，包含：开头 hook 思路、3-5 个核心段落（每段一个小标题 + 2-3 条要点）、结尾落点。直接输出 Markdown 大纲本身：\n\n【标题】${title || selectedArticle?.title || '（未填写）'}\n\n【当前正文】\n${content || '（正文为空）'}\n\n【路线参考】\n${articleRef}`,
       continue: `请续写以下文章的下一段（150字以内）：\n\n${content.substring(content.length - 800)}`,
       hook: `请为以下文章生成 3 个不同的开头（Hook），要求：从生活场景切入、引发好奇心、50字以内：\n\n主题：${title || selectedArticle?.title}\n概念：${selectedArticle?.concepts.join('、') || ''}`,
     }
     try {
       const data = await sendChat({ message: prompts[action] || prompts.polish })
       setAiResult(data.reply)
+      if (action === 'outline') {
+        setContent(prev => (prev ? prev + '\n\n' + data.reply : data.reply))
+      }
     } catch (e) {
       setAiResult(`请求失败：${e?.message || '网络错误，请确认后端已启动'}`)
     }
@@ -130,7 +138,7 @@ ${a.metaphor}
           {savedAt && (
             <span className="ws-saved">
               <span className="ws-save-dot" />
-              已自动保存 · {wordCount} 字
+              已自动保存 {savedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · {wordCount} 字
             </span>
           )}
           <button
@@ -215,7 +223,11 @@ ${a.metaphor}
             <div className="ws-ai-result">
               <div className="ws-ai-result-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(aiResult) }} />
               <div className="ws-ai-actions">
-                <button className="ws-ai-insert" onClick={insertResult}>插入到文章</button>
+                {aiAction === 'outline' ? (
+                  <span className="ws-ai-auto-hint">✓ 已补充到文章末尾</span>
+                ) : (
+                  <button className="ws-ai-insert" onClick={insertResult}>插入到文章</button>
+                )}
                 <button className="ws-ai-dismiss" onClick={() => { setAiResult(''); setAiAction('') }}>
                   <X size={13} strokeWidth={2} /> 清除
                 </button>

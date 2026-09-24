@@ -292,7 +292,7 @@ class ChatService:
             full_content = "（模型未返回正文，可能是服务繁忙，请点 ↻ 重试）"
         yield ("done", {"type": "chat", "reply": full_content})
 
-    async def _handle_chat(self, question: str, history: list | None = None) -> dict:
+    async def _handle_chat(self, question: str, history: list | None = None, style: str = "", persona: str = "") -> dict:
         """知识库对话 — 自动检索相关素材并引用"""
         rag_context, citations = self._build_rag(question)
         messages = self._build_messages(question, rag_context, history or [], style=style, persona=persona)
