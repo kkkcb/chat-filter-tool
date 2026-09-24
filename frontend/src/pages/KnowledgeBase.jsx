@@ -24,6 +24,7 @@ import { confirmDialog } from '../components/Confirm'
 import InputPalette, { SLASH_COMMANDS, paletteKeydown } from '../components/InputPalette'
 import '../components/InputPalette.css'
 import { deleteMessage } from '../api/conversations'
+import { request } from '../api/client'
 import './KnowledgeBase.css'
 
 const VISION_MODES = [
