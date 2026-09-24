@@ -52,8 +52,10 @@
   .chat-node-track { display:none; }        /* 右侧节点轨（悬停交互，触屏无意义 */
   .scroll-bottom-btn { bottom:150px; right:10px; width:40px; height:40px; }
   .kb-chat-main { position:relative; }
-  /* 消息操作栏由 hover 触发——触屏常显（低透明度） */
-  .msg-actions { opacity:.55; }
+  /* 消息操作栏触屏常显（不降透明度，否则白底上看不见） */
+  .msg-actions { opacity:1; }
+  .msg-actions button { width:32px; height:32px; }
+  .msg-actions button svg { width:15px; height:15px; }
   .lab-messages-page-input, .chat-page-input { padding:8px 10px 12px; max-width:100%; }
 
   /* ===== 知识库（笔记） ===== */

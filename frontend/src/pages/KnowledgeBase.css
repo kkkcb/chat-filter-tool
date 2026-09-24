@@ -59,32 +59,10 @@
 }
 .msg-detail-hint:hover { color:var(--accent); }
 
-/* === 单句删除按钮（常显低调，悬停强调） === */
-.msg-delete-btn {
-  display:inline-flex; align-items:center; justify-content:center;
-  width:22px; height:22px; padding:0; border:none; border-radius:4px;
-  background:var(--bg-muted); color:var(--text-light); cursor:pointer;
-  opacity:.45; transition:all var(--duration-fast) var(--ease);
-}
-.msg-delete-btn:hover { opacity:1; background:rgba(239,68,68,.1); color:var(--danger); }
-
-/* 复制正文按钮（与删除同款小图标，hover 才现身） */
-.msg-copy-btn {
-  display:inline-flex; align-items:center; justify-content:center;
-  width:20px; height:20px; padding:0; border:none; border-radius:4px;
-  background:var(--bg-muted); color:var(--text-light); cursor:pointer;
-  opacity:.45; transition:all var(--duration-fast) var(--ease);
-}
-.msg-copy-btn:hover { opacity:1; background:var(--bg-hover); color:var(--text); }
-.msg-copy-btn.copied { opacity:1; color:var(--success); background:rgba(16,185,129,.1); }
-.msg-copy-btn { margin-left:4px; }
-.msg-retry-btn {
-  display:inline-flex; align-items:center; justify-content:center;
-  width:20px; height:20px; padding:0; border:none; border-radius:4px;
-  background:var(--bg-muted); color:var(--text-light); cursor:pointer;
-  opacity:.45; transition:all var(--duration-fast) var(--ease); margin-left:4px;
-}
-.msg-retry-btn:hover { opacity:1; background:var(--bg-hover); color:var(--accent); }
+/* === 消息操作钮：样式统一收敛到 .msg-actions button（见文件尾部），
+      此处只保留个别状态色，避免重复定义与 .msg-aborted 内文字版重试钮打架 === */
+.msg-actions .msg-copy-btn.copied { color:var(--success) !important; border-color:var(--success) !important; }
+.msg-actions .msg-delete-btn:hover { color:var(--danger) !important; border-color:var(--danger) !important; background:rgba(239,68,68,.08) !important; }
 
 /* === 原始请求/返回弹窗 === */
 .detail-modal-overlay {
@@ -507,14 +485,12 @@
 .msg.user .msg-body code { background:rgba(232,85,58,.12); color:var(--accent-dark); }
 .msg.user .msg-body h1,.msg.user .msg-body h2,.msg.user .msg-body h3 { color:var(--accent-dark); }
 
-/* hover 操作栏：复制 / 重新生成 / 删除。
-   零高度 + overflow 可见：不占布局空间（否则透明状态也撑出 26px 空隙） */
+/* 消息底部操作栏：复制 / 重新生成 / 删除，常显（hover 才出现=发现不了） */
 .msg-actions {
-  display:flex; align-items:center; gap:3px;
-  height:0; overflow:visible; padding-top:4px;
-  opacity:0; transition:opacity var(--duration-fast) var(--ease);
+  display:flex; align-items:center; gap:4px;
+  margin-top:6px;
+  opacity:1;
 }
-.msg:hover .msg-actions { opacity:1; }
 .msg-actions.end { justify-content:flex-end; }
 .msg-actions .msg-detail-hint { margin-right:auto; font-size:10px; font-weight:400; color:var(--text-light); }
 .msg-actions.end .msg-detail-hint { margin-right:0; margin-left:auto; }
@@ -570,14 +546,14 @@
   padding-top:8px; border-top:1px dashed var(--border);
   font-size:12px; color:var(--text-muted);
 }
-.msg-retry-btn {
+.msg-aborted .msg-retry-btn {
   display:flex; align-items:center; gap:5px;
   padding:4px 12px; border:1px solid var(--border); background:var(--bg-card);
   border-radius:var(--radius-sm); font-size:11px; font-weight:500;
   color:var(--accent); cursor:pointer; font-family:var(--font);
   transition:all var(--duration-fast) var(--ease);
 }
-.msg-retry-btn:hover { background:var(--accent-light); border-color:var(--accent); }
+.msg-aborted .msg-retry-btn:hover { background:var(--accent-light); border-color:var(--accent); }
 
 /* === 中止按钮 === */
 .chat-abort {
@@ -903,13 +879,18 @@
   background:var(--bg-card);
 }
 
-/* 消息操作按钮：白底描边，不再与背景重叠 */
+/* 消息操作按钮（.msg-actions 内）：白底描边常显，图标 13px 固定尺寸防压缩 */
 .msg-actions button {
-  background:var(--bg-card) !important; border:1px solid var(--border);
+  display:inline-flex; align-items:center; justify-content:center;
+  width:26px; height:26px; padding:0; gap:0;
+  border:1px solid var(--border); border-radius:6px;
+  background:var(--bg-card) !important; color:var(--text-muted);
+  opacity:1 !important; cursor:pointer;
   box-shadow:0 1px 4px rgba(0,0,0,.08);
+  transition:all var(--duration-fast) var(--ease);
 }
+.msg-actions button svg { width:13px; height:13px; flex:none; }
 .msg-actions button:hover { border-color:var(--accent); color:var(--accent); }
-.msg-actions { opacity:1; } /* 桌面也常显（hover 才出现=发现不了） */
 .scroll-bottom-btn {
   border:1.5px solid var(--border-dark) !important; background:var(--bg-card) !important;
   box-shadow:0 3px 12px rgba(0,0,0,.18) !important; color:var(--text) !important;
