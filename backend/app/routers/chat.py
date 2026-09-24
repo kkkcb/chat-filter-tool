@@ -83,18 +83,34 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
     history = _load_history(db, conv_id, before_id=user_msg.id)
 
     # 构建原始请求记录
-    raw_request = json.dumps({
-        "message": req.message, "image": "[base64 image]" if req.image else None,
-        "mode": req.mode, "thinking": req.thinking, "style": req.style or "", "conversation_id": conv_id,
-    }, ensure_ascii=False, indent=2)
-
-    # 人设笔记内容（写作助手 system prompt）
+    # 人设笔记内容（写作助手 system prompt）——raw_request 需要带上
+    # 实际发给模型的完整 system（人设/RAG 规则），消息详情里可见可查
     persona_text = ""
     if req.persona_id:
         from app.models.note import Note as _Note
         _n = db.query(_Note).filter(_Note.id == req.persona_id).first()
         if _n:
             persona_text = _n.content or ""
+
+    # 组装 raw_request：与真实发给模型的 messages 对齐（system 完整呈现）
+    svc_probe = ChatService(db)
+    _probe_rag = ""
+    if req.use_rag if req.use_rag is not None else True:
+        try:
+            _probe_rag, _ = svc_probe._build_rag(req.message)
+        except Exception:
+            _probe_rag = ""
+    _probe_msgs = svc_probe._build_messages(
+        req.message, _probe_rag, history or [],
+        style=req.style or "", persona=persona_text)
+    _sys = next((m["content"] for m in _probe_msgs if m["role"] == "system"), None)
+    raw_request = json.dumps({
+        "message": req.message, "image": "[base64 image]" if req.image else None,
+        "mode": req.mode, "thinking": req.thinking, "style": req.style or "",
+        "persona_id": req.persona_id,
+        "system": _sys if _sys else "(无 system —— 纯模型直答)",
+        "conversation_id": conv_id,
+    }, ensure_ascii=False, indent=2)
 
     async def event_stream():
         try:
