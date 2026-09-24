@@ -25,6 +25,7 @@ import InputPalette, { SLASH_COMMANDS, paletteKeydown } from '../components/Inpu
 import '../components/InputPalette.css'
 import { deleteMessage } from '../api/conversations'
 import { request } from '../api/client'
+import NoteMarkdown from '../components/NoteMarkdown'
 import './KnowledgeBase.css'
 
 const VISION_MODES = [
@@ -53,6 +54,7 @@ export default function KnowledgeBase() {
   const [nodePreview, setNodePreview] = useState(null) // 导航点悬停预览 {text,x,y}
   const [personas, setPersonas] = useState([]) // 可用聊天人设（笔记 tag=人设）
   const [personaDraft, setPersonaDraft] = useState(null) // {id,title,content} 实时编辑中的人设
+  const [personaPreview, setPersonaPreview] = useState(true) // true=markdown 预览 / false=源码编辑
   useEffect(() => {
     request('/chat/personas').then(setPersonas).catch(() => {})
   }, [])
@@ -934,7 +936,10 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           <div className="persona-edit-panel" onClick={(e) => e.stopPropagation()}>
             <div className="persona-edit-head">
               <span>✎ {personaDraft.title}（保存后立即生效）</span>
-              <div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="polish-btn ghost" onClick={() => setPersonaPreview(p => !p)}>
+                  {personaPreview ? '编辑源码' : '预览'}
+                </button>
                 <button className="polish-btn ghost" onClick={() => setPersonaDraft(null)}>取消</button>
                 <button className="polish-btn primary" onClick={async () => {
                   try {
@@ -945,9 +950,15 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                 }}>保存</button>
               </div>
             </div>
-            <textarea className="persona-edit-text" value={personaDraft.content}
-              onChange={(e) => setPersonaDraft(d => ({ ...d, content: e.target.value }))}
-              spellCheck={false} />
+            {personaPreview ? (
+              <div className="persona-edit-preview" onDoubleClick={() => setPersonaPreview(false)}>
+                <NoteMarkdown content={personaDraft.content} onImageOpen={() => {}} />
+              </div>
+            ) : (
+              <textarea className="persona-edit-text" value={personaDraft.content}
+                onChange={(e) => setPersonaDraft(d => ({ ...d, content: e.target.value }))}
+                spellCheck={false} />
+            )}
           </div>
         </div>
       )}
