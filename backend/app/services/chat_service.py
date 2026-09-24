@@ -114,7 +114,7 @@ class ChatService:
             "entry": entry,
         }
 
-    async def handle_message_stream(self, message: str = "", image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True, files: list | None = None, use_web: bool = False, style: str = ""):
+    async def handle_message_stream(self, message: str = "", image: str = "", mode: str = "describe", thinking: bool = False, history: list | None = None, use_rag: bool = True, files: list | None = None, use_web: bool = False, style: str = "", persona: str = ""):
         """流式版统一入口 — yield (event_type, data_dict)"""
         if image:
             # 图片不支持流式，降级为普通调用
@@ -147,7 +147,7 @@ class ChatService:
                 message = message + "\n\n以下是用户上传的文件内容：\n\n" + "\n\n".join(file_parts)
 
         # 普通对话走流式
-        async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag, use_web=use_web, style=style):
+        async for event in self._handle_chat_stream(message, thinking, history or [], use_rag=use_rag, use_web=use_web, style=style, persona=persona):
             yield event
 
     def _build_rag(self, question: str) -> tuple[str, list]:
@@ -157,7 +157,7 @@ class ChatService:
         context = "\n\n".join(x for x in (mat_ctx, note_ctx) if x)
         return context, mat_cites + note_cites
 
-    def _build_messages(self, question: str, rag_context: str, history: list, style: str = "") -> list[dict]:
+    def _build_messages(self, question: str, rag_context: str, history: list, style: str = "", persona: str = "") -> list[dict]:
         """组装完整 messages：system + 多轮历史 + 当前问题。style 为输出风格注入"""
         if not rag_context:
             system_content = (
@@ -184,6 +184,11 @@ class ChatService:
         style_block = OUTPUT_STYLES.get(style)
         if style_block:
             system_content += f"\n\n【输出风格要求】\n{style_block}"
+        # 人设注入（写作助手）：完整替代默认科普通识，置于 system 最前
+        if persona:
+            base_persona = ("你是一个AI科普创作助手的底盘能力：知识准确、不编造数据。\n\n"
+                            if not rag_context else "")
+            system_content = base_persona + persona + "\n\n---\n以下为检索上下文与输出规则（人设优先级最高）：\n" + system_content
         messages = [{"role": "system", "content": system_content}]
         # 多轮历史（role/content 均已校验，见路由层 _load_history）
         messages.extend(history)
@@ -212,13 +217,13 @@ class ChatService:
             return ""
         return "用户在消息里显式引用了以下内容（优先依据它们回答）：\n\n" + "\n\n".join(parts)
 
-    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True, use_web: bool = False, style: str = ""):
+    async def _handle_chat_stream(self, question: str, thinking: bool = False, history: list | None = None, use_rag: bool = True, use_web: bool = False, style: str = "", persona: str = ""):
         """流式知识库对话（use_web=True 时模型可调用 web_fetch 工具抓网页）"""
         rag_context, citations = self._build_rag(question) if use_rag else ("", [])
         mention_ctx = self._resolve_mentions(question)
         if mention_ctx:
             rag_context = (rag_context + "\n\n" + mention_ctx).strip()
-        messages = self._build_messages(question, rag_context, history or [], style=style)
+        messages = self._build_messages(question, rag_context, history or [], style=style, persona=persona)
 
         # 工具提示注入 system（GLM 拿到 tools 规格，这里补充「何时该用」）
         # 原生 web_search 由智谱服务端执行（按次计费，费用很低），web_fetch 由本机执行
@@ -285,7 +290,7 @@ class ChatService:
     async def _handle_chat(self, question: str, history: list | None = None) -> dict:
         """知识库对话 — 自动检索相关素材并引用"""
         rag_context, citations = self._build_rag(question)
-        messages = self._build_messages(question, rag_context, history or [], style=style)
+        messages = self._build_messages(question, rag_context, history or [], style=style, persona=persona)
 
         reply = await llm_service.chat(messages)
 

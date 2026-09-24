@@ -24,6 +24,8 @@ export const useChatStore = create((set, get) => ({
   toggleDeepThinking: () => set(state => ({ deepThinking: !state.deepThinking })),
   toggleUseRag: () => set(state => ({ useRag: !state.useRag })),
   toggleUseWeb: () => set(state => ({ useWeb: !state.useWeb })),
+  personaId: null, // 聊天人设（笔记 tag=人设 的 id，写作助手 system prompt）
+  setPersonaId: (id) => set({ personaId: id }),
   setOutputStyle: (style) => {
     try { style ? localStorage.setItem('chat_output_style', style) : localStorage.removeItem('chat_output_style') } catch {}
     set({ style })
@@ -69,7 +71,7 @@ export const useChatStore = create((set, get) => ({
       const resp = await fetch(`${API_PREFIX}/chat/stream`, {
         method: 'POST',
         headers: streamHeaders,
-        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, use_web: get().useWeb, style: get().style, conversation_id: conversationId || null, files: files || undefined }),
+        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, use_web: get().useWeb, style: get().style, persona_id: get().personaId, conversation_id: conversationId || null, files: files || undefined }),
         signal: abortController.signal,
       })
 

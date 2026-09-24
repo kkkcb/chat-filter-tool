@@ -46,6 +46,15 @@ async def chat(req: ChatRequest, db: Session = Depends(get_db)):
     return ChatResponse(**result)
 
 
+
+@router.get("/chat/personas")
+async def list_personas(db: Session = Depends(get_db)):
+    """可用聊天人设（笔记 tag=人设）：id/标题/摘要"""
+    from app.models.note import Note
+    notes = db.query(Note).filter(Note.tags.like('%人设%')).order_by(Note.updated_at.desc()).all()
+    return [{"id": n.id, "title": n.title,
+             "excerpt": (n.content or "")[:80].replace("\n", " ")} for n in notes]
+
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
     """流式对话入口（SSE）— 实时输出思考过程和正文，同时保存对话历史"""
@@ -79,6 +88,14 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
         "mode": req.mode, "thinking": req.thinking, "style": req.style or "", "conversation_id": conv_id,
     }, ensure_ascii=False, indent=2)
 
+    # 人设笔记内容（写作助手 system prompt）
+    persona_text = ""
+    if req.persona_id:
+        from app.models.note import Note as _Note
+        _n = db.query(_Note).filter(_Note.id == req.persona_id).first()
+        if _n:
+            persona_text = _n.content or ""
+
     async def event_stream():
         try:
             # 先发对话 ID、用户消息 ID 和连接建立信号（前端据此支持单句删除）
@@ -89,7 +106,7 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
             msg_data = None
 
             async for event_type, event_data in svc.handle_message_stream(
-                req.message, req.image, req.mode, req.thinking or False, history=history, use_rag=req.use_rag if req.use_rag is not None else True, files=[f.dict() for f in req.files] if req.files else None, use_web=req.use_web or False, style=req.style or ""
+                req.message, req.image, req.mode, req.thinking or False, history=history, use_rag=req.use_rag if req.use_rag is not None else True, files=[f.dict() for f in req.files] if req.files else None, use_web=req.use_web or False, style=req.style or "", persona=persona_text
             ):
                 if isinstance(event_data, (dict, list)):
                     payload_data = event_data

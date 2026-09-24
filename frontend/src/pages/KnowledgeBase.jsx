@@ -36,7 +36,7 @@ const VISION_MODES = [
 ]
 
 export default function KnowledgeBase() {
-  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage, style: outputStyle, setOutputStyle, historyLoading } = useChatStore()
+  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage, style: outputStyle, setOutputStyle, historyLoading, personaId, setPersonaId } = useChatStore()
   const { selectedImage, selectedMode, setImage, setMode, clear } = useVisionStore()
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
@@ -50,6 +50,10 @@ export default function KnowledgeBase() {
     if (window.matchMedia('(max-width:768px)').matches) setHistoryCollapsed(true)
   }, [])
   const [nodePreview, setNodePreview] = useState(null) // 导航点悬停预览 {text,x,y}
+  const [personas, setPersonas] = useState([]) // 可用聊天人设（笔记 tag=人设）
+  useEffect(() => {
+    request('/chat/personas').then(setPersonas).catch(() => {})
+  }, [])
   const [bookmarks, setBookmarks] = useState([]) // 一次性标记 [{msgId, label}]
   const [askPanel, setAskPanel] = useState(null) // {quote, question, messages: [], sending}
   const [paletteIdx, setPaletteIdx] = useState(0)
@@ -764,6 +768,17 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
               <option value="concise">简洁高效</option>
               <option value="brainstorm">创作脑暴</option>
             </select>
+            {personas.length > 0 && (
+              <select
+                className="think-style-select persona"
+                value={personaId || ''}
+                onChange={(e) => setPersonaId(e.target.value ? Number(e.target.value) : null)}
+                title="聊天人设：切换 AI 的角色（如公众号写作助手），基于笔记库中人设笔记"
+              >
+                <option value="">无人设</option>
+                {personas.map(p => <option key={p.id} value={p.id}>{p.title.replace(/·.*/, '')}</option>)}
+              </select>
+            )}
           </div>
         </div>
 

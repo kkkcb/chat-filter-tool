@@ -17,7 +17,8 @@ class ChatRequest(BaseModel):
     thinking: Optional[bool] = False
     use_rag: Optional[bool] = True   # 是否检索知识库并引用（前端「引用知识库」开关）
     use_web: Optional[bool] = False  # 是否允许模型调用 web_fetch 抓取网页（前端「联网抓取」开关）
-    style: Optional[str] = ""        # 输出风格：explain/teach/concise/brainstorm（前端「输出风格」选择器）
+    style: Optional[str] = ""
+    persona_id: Optional[int] = None  # 人设笔记 id（tag=人设），注入为写作 system prompt        # 输出风格：explain/teach/concise/brainstorm（前端「输出风格」选择器）
     conversation_id: Optional[int] = None
     files: Optional[list[FileAttachment]] = None  # 上传的文件附件
 
