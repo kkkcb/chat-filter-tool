@@ -184,12 +184,17 @@ class ChatService:
         style_block = OUTPUT_STYLES.get(style)
         if style_block:
             system_content += f"\n\n【输出风格要求】\n{style_block}"
-        # 人设注入（写作助手）：完整替代默认科普通识，置于 system 最前
+        # 人设注入（写作助手）：完整替代默认科普通识，置于 system 最前。
+        # 无人设且无 RAG 上下文 → 完全不带 system（纯模型直答）
         if persona:
             base_persona = ("你是一个AI科普创作助手的底盘能力：知识准确、不编造数据。\n\n"
                             if not rag_context else "")
             system_content = base_persona + persona + "\n\n---\n以下为检索上下文与输出规则（人设优先级最高）：\n" + system_content
-        messages = [{"role": "system", "content": system_content}]
+            messages = [{"role": "system", "content": system_content}]
+        elif rag_context:
+            messages = [{"role": "system", "content": system_content}]
+        else:
+            messages = []
         # 多轮历史（role/content 均已校验，见路由层 _load_history）
         messages.extend(history)
         messages.append({"role": "user", "content": question})

@@ -37,7 +37,7 @@ const VISION_MODES = [
 ]
 
 export default function KnowledgeBase() {
-  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage, style: outputStyle, setOutputStyle, historyLoading, personaId, setPersonaId } = useChatStore()
+  const { messages, isSending, sendMessage, confirmSave, dismissSave, clearMessages, abort, retry, deepThinking, toggleDeepThinking, useRag, toggleUseRag, useWeb, toggleUseWeb, removeMessage, historyLoading, personaId, setPersonaId } = useChatStore()
   const { selectedImage, selectedMode, setImage, setMode, clear } = useVisionStore()
   const { fetchStats } = useMaterialStore()
   const { conversations, activeId, loadConversations, selectConversation, newConversation, renameConversation, removeConversation, reorder, refreshAfterMessage, clearActive } = useConversationStore()
@@ -52,6 +52,7 @@ export default function KnowledgeBase() {
   }, [])
   const [nodePreview, setNodePreview] = useState(null) // 导航点悬停预览 {text,x,y}
   const [personas, setPersonas] = useState([]) // 可用聊天人设（笔记 tag=人设）
+  const [personaDraft, setPersonaDraft] = useState(null) // {id,title,content} 实时编辑中的人设
   useEffect(() => {
     request('/chat/personas').then(setPersonas).catch(() => {})
   }, [])
@@ -757,28 +758,26 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
                 <span className="think-switch-knob" />
               </span>
             </button>
-            <select
-              className="think-style-select"
-              value={outputStyle}
-              onChange={(e) => setOutputStyle(e.target.value)}
-              title="输出风格：切换回复的表达方式（下次提问生效）"
-            >
-              <option value="">默认风格</option>
-              <option value="explain">科普讲解</option>
-              <option value="teach">循序教学</option>
-              <option value="concise">简洁高效</option>
-              <option value="brainstorm">创作脑暴</option>
-            </select>
             {personas.length > 0 && (
-              <select
-                className="think-style-select persona"
-                value={personaId || ''}
-                onChange={(e) => setPersonaId(e.target.value ? Number(e.target.value) : null)}
-                title="聊天人设：切换 AI 的角色（如公众号写作助手），基于笔记库中人设笔记"
-              >
-                <option value="">无人设</option>
-                {personas.map(p => <option key={p.id} value={p.id}>{p.title.replace(/·.*/, '')}</option>)}
-              </select>
+              <>
+                <select
+                  className="think-style-select persona"
+                  value={personaId || ''}
+                  onChange={(e) => setPersonaId(e.target.value ? Number(e.target.value) : null)}
+                  title="聊天人设：AI 的角色/写作口吻（无人设=纯模型直答）"
+                >
+                  <option value="">无人设</option>
+                  {personas.map(p => <option key={p.id} value={p.id}>{p.title.replace(/·.*/, '')}</option>)}
+                </select>
+                {personaId && (
+                  <button className="persona-edit-btn" onClick={() => {
+                    const p = personas.find(x => x.id === personaId)
+                    if (p) request(`/notes/${personaId}`).then(n => {
+                      setPersonaDraft({ id: personaId, title: n.title, content: n.content || '' })
+                    }).catch(() => toast('拉取人设失败', 'error'))
+                  }} title="实时编辑当前人设（改完立即生效）">✎</button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -929,7 +928,31 @@ ${historyText ? `\n之前的追问：\n${historyText}\n` : ''}
           </div>
         )}
 
-        {/* 导航点悬停预览：fixed 定位，脱离轨道滚动容器的裁剪（right 锚定向左展开） */}
+        {/* 人设实时编辑浮层 */}
+      {personaDraft && (
+        <div className="persona-edit-overlay" onClick={() => setPersonaDraft(null)}>
+          <div className="persona-edit-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="persona-edit-head">
+              <span>✎ {personaDraft.title}（保存后立即生效）</span>
+              <div>
+                <button className="polish-btn ghost" onClick={() => setPersonaDraft(null)}>取消</button>
+                <button className="polish-btn primary" onClick={async () => {
+                  try {
+                    await request(`/notes/${personaDraft.id}`, { method: 'PUT', body: JSON.stringify({ content: personaDraft.content }) })
+                    toast('人设已保存，下次提问生效', 'success')
+                    setPersonaDraft(null)
+                  } catch (e) { toast(e?.message || '保存失败', 'error') }
+                }}>保存</button>
+              </div>
+            </div>
+            <textarea className="persona-edit-text" value={personaDraft.content}
+              onChange={(e) => setPersonaDraft(d => ({ ...d, content: e.target.value }))}
+              spellCheck={false} />
+          </div>
+        </div>
+      )}
+
+      {/* 导航点悬停预览：fixed 定位，脱离轨道滚动容器的裁剪（right 锚定向左展开） */}
         {nodePreview && (
           <div className="chat-node-preview-float" style={{ right: nodePreview.right, top: nodePreview.y }}>
             {nodePreview.text.length > 260 ? nodePreview.text.slice(0, 260) + '…' : nodePreview.text}

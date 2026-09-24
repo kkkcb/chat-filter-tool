@@ -870,3 +870,45 @@
 .chs-row.short { width:52%; height:52px; }
 .chs-hint { text-align:center; font-size:12px; color:var(--text-light); padding-top:6px; }
 @keyframes chsShimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+
+
+/* 人设实时编辑 */
+.persona-edit-btn {
+  border:1px solid var(--border); background:var(--bg-card); color:var(--accent);
+  width:26px; height:26px; border-radius:6px; cursor:pointer; font-size:13px;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:all var(--duration-fast) var(--ease);
+}
+.persona-edit-btn:hover { border-color:var(--accent); background:var(--accent-light); }
+.persona-edit-overlay {
+  position:fixed; inset:0; z-index:1500; background:rgba(0,0,0,.45);
+  display:flex; align-items:center; justify-content:center; animation:pkbFadeIn .15s var(--ease);
+}
+.persona-edit-panel {
+  width:min(860px, 92vw); height:min(78vh, 800px); background:var(--bg-card);
+  border-radius:14px; display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.persona-edit-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border);
+  font-size:13px; font-weight:700; color:var(--text);
+}
+.persona-edit-head > div { display:flex; gap:8px; }
+.persona-edit-text {
+  flex:1; border:none; outline:none; resize:none; padding:16px 20px;
+  font-family:var(--font-mono); font-size:12.5px; line-height:1.8; color:var(--text);
+  background:var(--bg-card);
+}
+
+/* 消息操作按钮：白底描边，不再与背景重叠 */
+.msg-actions button {
+  background:var(--bg-card) !important; border:1px solid var(--border);
+  box-shadow:0 1px 4px rgba(0,0,0,.08);
+}
+.msg-actions button:hover { border-color:var(--accent); color:var(--accent); }
+.msg-actions { opacity:1; } /* 桌面也常显（hover 才出现=发现不了） */
+.scroll-bottom-btn {
+  border:1.5px solid var(--border-dark) !important; background:var(--bg-card) !important;
+  box-shadow:0 3px 12px rgba(0,0,0,.18) !important; color:var(--text) !important;
+}

@@ -71,7 +71,7 @@ export const useChatStore = create((set, get) => ({
       const resp = await fetch(`${API_PREFIX}/chat/stream`, {
         method: 'POST',
         headers: streamHeaders,
-        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, use_web: get().useWeb, style: get().style, persona_id: get().personaId, conversation_id: conversationId || null, files: files || undefined }),
+        body: JSON.stringify({ message: text, image: image || '', mode: mode || '', thinking, use_rag: get().useRag, use_web: get().useWeb, persona_id: get().personaId, conversation_id: conversationId || null, files: files || undefined }),
         signal: abortController.signal,
       })
 
