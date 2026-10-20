@@ -1,419 +1,131 @@
 # ICE · AI 创作引擎
 
-> 个人 AI 内容创作工作台 — AI 对话 · 素材管理 · 创作工坊 · 微信记录导出
+个人 AI 内容创作工作台：GLM 流式对话 · 网页剪藏素材库 · 知识库全文检索 · 创作工坊 · 微信记录导出。前后端自研，已部署上线（systemd 常驻 80 端口）。
 
----
+## 技术栈
 
-## 目录
+- **前端**：React 19 + Vite 8 + Zustand 5；Markdown 渲染（markdown-it + DOMPurify）
+- **后端**：Python / FastAPI + SQLAlchemy + SQLite（FTS5）
+- **模型**：GLM-5.2（对话主力）/ glm-4.6v（视觉理解）/ glm-5.3-flash（润色等轻量任务，实测 11s vs 旗舰 16~29s，质量相当——按任务分级调用）
+- **微信导出**：独立 stdlib HTTP 服务，SQLCipher + AES-256-CBC 解密本地聊天库
+- **部署**：VPS systemd 常驻；脚本化「构建 → 上传 → 版本回读自检」流程；Cloudflare Pages + 内网穿透备用链路
 
-- [功能一览](#功能一览)
-- [技术亮点](#技术亮点)
-- [环境要求](#环境要求)
-- [快速部署（新电脑）](#快速部署新电脑)
-- [详细配置说明](#详细配置说明)
-- [日常使用](#日常使用)
-- [微信导出功能](#微信导出功能)
-- [故障排查](#故障排查)
-- [项目结构](#项目结构)
-- [技术栈](#技术栈)
+## 核心设计
 
----
+### 一条消息如何变成回复
 
-## 功能一览
-
-| 模块 | 说明 |
-|------|------|
-| **AI 对话** | 流式聊天（GLM-5.2），深度思考模式，多轮对话历史管理，人设实时编辑 |
-| **素材库** | 分类管理创作素材，支持文本/图片/链接，CLIP 语义搜索 |
-| **知识库** | 个人笔记 + 分类 + SQLite FTS5 全文检索 |
-| **创作区** | 文章选题推荐、写作工坊、灵感工坊 |
-| **微信记录** | 导出微信 4.x 聊天记录，搜索/预览/收藏/导出 HTML/JSON |
-
----
-
-## 技术亮点
-
-- **流式对话与可观测**：SSE 流式输出 + 深度思考模式；`raw_request` 完整记录每次实际发送的 system 提示词，对话行为可回溯
-- **上下文工程**：长对话自动压缩（compaction），控制 token 成本的同时保留关键上下文
-- **多模态检索**：CLIP 实现图片语义搜索，与文本素材统一管理
-- **人设系统**：对话人设实时编辑（markdown 渲染），无人设时零 system 注入
-- **微信 4.x 解密链路**：SQLCipher + AES-256-CBC 解密本地聊天库，FTS 全文检索后一键收入素材库
-- **部署链路**：VPS 常驻部署（systemd），脚本化构建-上传-版本自检流程，数据自动备份
-
----
-
-## 环境要求
-
-| 组件 | 版本 | 说明 |
-|------|------|------|
-| **Node.js** | 18+ | 前端构建 |
-| **Python** | 3.10+ | 后端服务（微信导出推荐 3.13） |
-| **操作系统** | Windows 10/11 | 微信导出仅支持 Windows |
-| **微信** | 4.x（Weixin.exe） | 微信导出需要微信正在运行 |
-
-**Python 包管理器**: `pip`（Python 自带）
-
----
-
-## 快速部署（新电脑）
-
-### 第 0 步：安装基础软件
-
-如果新电脑还没装 Node.js 和 Python：
-
-```powershell
-# 下载 Node.js (LTS 版)
-# https://nodejs.org/
-
-# 下载 Python 3.13
-# https://www.python.org/downloads/
-# 安装时务必勾选 "Add Python to PATH"
+```text
+用户输入（文本 / 图片 / 链接 / 素材引用）
+  → 输入分发：链接剪藏入库 / 图片走视觉模型理解 / 文本直达
+  → RAG 检索：FTS5 bigram 全文检索素材与笔记
+      → 相关性后过滤（2-gram 覆盖度），只留真正命中问题语义的条目
+  → 上下文组装：
+      人设（可实时编辑；无人设则零 system 注入）
+      + 输出风格（科普/教学/简洁/脑暴四型会话级约束）
+      + 命中素材注入 + 压缩检查点（长对话）
+  → GLM 分级调用（对话 / 视觉 / 轻量三档）
+  → SSE 流式返回；raw_request 全量留痕（记录实际发送的 system 提示词，行为可回溯）
 ```
 
-### 第 1 步：克隆仓库
+### 上下文压缩（长对话检查点）
+
+借鉴 deepseek-harness 的 compaction 策略并做中文适配：
+
+- **七段结构化检查点**：原始意图 / 关键概念 / 文件与代码 / 错误与修复 / 待办 / 当前工作 / 下一步；要求保留精确路径、命令、错误串与用户纠正
+- **压缩指令放在重放对话的最后一条 user 消息**（而非独立 system）——与上次真实请求前缀对齐，可复用 KV 缓存
+- 遇到旧 `<compacted-summary>` 增量合并而非照抄，压缩可重复执行
+- 加载历史 = 检查点 + 最近 12 条全文，替代硬截断
+
+### 检索：FTS5 bigram + 相关性后过滤
+
+- SQLite FTS5 的 unicode61 分词器把连续中文当整串 token → 入库与查询都先做 **bigram 预处理**（“浏览器自动化” → “浏览 览器 器自 自动 动化”）
+- FTS 命中过宽（只言片语即返回）→ 检索后按 **2-gram 滑窗覆盖比例**过滤并剔除停用词，避免弱相关素材被注入、AI 被迫硬凑引用
+- FTS5 不可用或索引损坏时自动回退关键词暴力扫描，主流程不中断
+
+### 知识库对外只读 API
+
+- 供外部 AI / 工具读取个人沉淀笔记：默认返回 Markdown 全文（笔记本身不大，摘要截断反而要二次请求）
+- 根路径 `/kb/` 返回自描述 JSON，外部 agent 首次访问即可学会怎么用
+- 只读（写入仍走应用内接口）；可选 token 鉴权
+
+### 访问控制
+
+- 本机直连（localhost Host）免鉴权；公网访问所有 `/api` 需 `APP_ACCESS_TOKEN`（`X-Access-Token` / `?access_token=` / `Bearer`）
+- 前端收到 401 时弹应用内令牌输入框（非浏览器原生弹窗），确认后写入 localStorage 自动重试
+- 笔记图片静态服务豁免鉴权（`<img>` 无法携带自定义头），安全性靠 12 位 hex 不可猜文件名 + 正文 API 仍需令牌
+
+### 微信记录导出
+
+解密微信 4.x 本地库（需自行提取密钥）→ FTS 检索 → 预览 / 收藏 / 导出 HTML / JSON → 勾选消息一键收入素材库，进入 RAG 链路。仅支持导出本人聊天数据。
+
+## 代码导航
+
+| 路径 | 职责 |
+|---|---|
+| `backend/app/services/chat_service.py` | 对话编排：输入分发、人设与输出风格、素材注入 |
+| `backend/app/services/llm_service.py` | GLM 统一封装：三档模型分级、共享连接池、流式 |
+| `backend/app/services/compaction_service.py` | 长对话检查点压缩 |
+| `backend/app/services/clip_service.py` | 网页剪藏（GitHub / 微信公众号 / 通用来源适配） |
+| `backend/app/services/material_service.py` | 素材管理与检索（FTS 优先，回退扫描） |
+| `backend/app/services/note_service.py` | 笔记与知识库 |
+| `backend/app/core/fts.py` | FTS5 bigram 分词与检索 |
+| `backend/app/core/relevance.py` | 检索结果相关性后过滤 |
+| `backend/app/routers/kb.py` | 知识库对外只读 API |
+| `backend/app/main.py` | 应用入口 + 全局访问令牌中间件 |
+| `frontend/src/` | React 19 前端（对话 / 素材库 / 知识库 / 创作区 / 微信记录） |
+| `wechat-export/` | 微信解密导出独立服务（:5679） |
+
+各模块 docstring 记录了设计决策的背景与取舍（如压缩策略为何放最后一条 user 消息、bigram 的必要性），读代码建议从 docstring 入手。
+
+## 开发与运行
+
+环境：Node.js 18+、Python 3.10+（微信导出推荐 3.13）、Windows 10/11。
 
 ```powershell
 git clone https://github.com/kkkcb/ice-workbench.git
 cd ice-workbench
-```
 
-> 如果没装 Git，去 https://git-scm.com/ 下载安装
+# 依赖
+cd frontend; npm install; cd ..
+cd backend; pip install -r requirements.txt; cd ..
+pip install pycryptodome zstandard   # 可选：微信导出
 
-### 第 2 步：安装全部依赖（一键脚本）
-
-将以下命令复制到 PowerShell 中执行：
-
-```powershell
-# 前端依赖
-cd frontend
-npm install
-cd ..
-
-# 后端依赖
-cd backend
-pip install -r requirements.txt
-cd ..
-
-# 微信导出依赖（可选）
-pip install pycryptodome zstandard
-```
-
-### 第 3 步：配置环境
-
-```powershell
-# ===== 后端配置 =====
+# 配置：backend/.env（参照 backend/.env.example，填 GLM_API_KEY）
 copy backend\.env.example backend\.env
-# 用记事本编辑 backend\.env，填入你的 GLM API Key
 
-# ===== 微信导出配置（可选） =====
-copy wechat-export\config.example.json wechat-export\config.json
-# 用记事本编辑 wechat-export\config.json，填入你的微信数据路径
+# 启动（后台静默，三个服务一键拉起）
+.\start.ps1     # 开发模式用 .\dev.ps1
 ```
-
-### 第 4 步：启动
-
-```powershell
-.\start.ps1
-```
-
-浏览器会自动打开 `http://localhost:5173`，三个服务全部后台静默运行。
-
----
-
-## 详细配置说明
-
-### 1. 后端 `.env` 文件
-
-位置：`backend/.env`
-
-```ini
-# GLM API（必填，AI 对话功能依赖此 Key）
-GLM_API_KEY=你的智谱API Key
-GLM_ENDPOINT=https://open.bigmodel.cn/api/coding/paas/v4/chat/completions
-GLM_MODEL=glm-5.2
-GLM_VISION_MODEL=glm-4.6v
-
-# 数据库
-DATABASE_PATH=../data/workbench.db
-
-# 文件存储
-INBOX_DIR=../../inbox
-
-# 服务
-APP_HOST=127.0.0.1
-APP_PORT=8000
-```
-
-> **获取 GLM API Key**: 访问 https://open.bigmodel.cn/ → 注册 → 控制台 → API Keys
-
-### 2. 微信导出 `config.json`
-
-位置：`wechat-export/config.json`
-
-```json
-{
-    "db_dir": "C:\\Users\\你的用户名\\Documents\\xwechat_files\\你的wxid\\db_storage",
-    "keys_file": "all_keys.json",
-    "decrypted_dir": "decrypted",
-    "wechat_process": "Weixin.exe"
-}
-```
-
-**如何找到你的 `db_dir` 路径**：
-
-```powershell
-# 在 PowerShell 中运行，查找微信数据库目录
-Get-ChildItem "$env:USERPROFILE\Documents\xwechat_files" -Directory | Select-Object Name
-# 输出示例: wxid_xxxx_1234
-# 那么完整路径就是:
-# C:\Users\你的用户名\Documents\xwechat_files\wxid_xxxx_1234\db_storage
-```
-
-### 3. 微信导出 `all_keys.json`（密钥文件）
-
-**此文件不含在仓库中，需自行提取。**
-
-位置：`wechat-export/all_keys.json`
-
-> **密钥是每个电脑唯一的**，绑定于当前 Windows 账户 + 微信登录账号 + 微信安装。换电脑、重装微信、换账号都需要重新提取。
-
-#### 提取方法
-
-需要使用微信 4.x 密钥提取工具（可参考 GitHub 上的 wechat-decrypt 类项目）。
-
-**前提条件**：
-- 微信 4.x（Weixin.exe）正在运行并已登录
-- Python 3.10+ 已安装 pycryptodome（`pip install pycryptodome`）
-- **管理员权限**运行 PowerShell（读取进程内存需要）
-
-**操作步骤**：
-
-```powershell
-# 1. 获取 wechat-decrypt 项目（如果没有的话）
-#    放到任意目录，比如 C:\微信聊天记录分析\wechat-decrypt\
-
-# 2. 以管理员身份打开 PowerShell
-
-# 3. 运行密钥提取脚本
-cd C:\微信聊天记录分析\wechat-decrypt
-python find_all_keys_windows.py
-```
-
-脚本会自动完成：
-1. 自动检测微信数据目录（不需要手动配路径）
-2. 找到所有 `.db` 文件
-3. 扫描 `Weixin.exe` 进程内存
-4. 提取每个数据库的密钥
-5. 在当前目录生成 `all_keys.json`
-
-**提取完成后**，把文件复制到项目中：
-
-```powershell
-Copy-Item "C:\微信聊天记录分析\wechat-decrypt\all_keys.json" ".\wechat-export\all_keys.json"
-```
-
-**格式参考**：
-
-```json
-{
-    "contact\\contact.db": {
-        "enc_key": "64位十六进制密钥字符串"
-    },
-    "message\\message_0.db": {
-        "enc_key": "64位十六进制密钥字符串"
-    }
-}
-```
-
----
-
-## 日常使用
-
-### 启动项目
-
-```powershell
-# 方式一：正式启动（后台静默，无弹窗）
-.\start.ps1
-
-# 方式二：开发模式（前台运行，方便看日志调试）
-.\dev.ps1
-```
-
-### 停止项目
-
-```powershell
-# start.ps1 每次运行会自动清理旧进程
-# 如需手动停止：
-Get-NetTCPConnection -LocalPort 5173,8000,5679 -State Listen -ErrorAction SilentlyContinue |
-    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-```
-
-### 构建前端
-
-```powershell
-cd frontend
-npm run build
-# 产物在 frontend/dist/
-```
-
----
-
-## 微信导出功能
-
-### 交互设计
-
-| 操作 | 效果 |
-|------|------|
-| 打开微信记录页面 | 显示搜索引导（不加载全部联系人，避免卡顿） |
-| 输入群名/人名/昵称 | 实时搜索匹配的联系人 |
-| 点击联系人 | 自动收藏到左侧列表 |
-| 清空搜索 | 显示已收藏的联系人 |
-| **右键**联系人 | 弹出菜单 → 「隐藏此联系人」 |
-| 隐藏后 | 不再出现在收藏列表和搜索结果中 |
-| 点击「近30天」按钮 | 切换近期活跃 / 全部联系人 |
-
-### 导出聊天记录
-
-1. 在左侧选中联系人（可多选勾选框）
-2. 在中栏选择导出格式：HTML / JSON / 两者
-3. 点击「导出」
-4. 等待进度完成
-5. 在右侧「导出历史」中下载文件
-
-### 收入素材库
-
-1. 预览联系人消息
-2. 勾选需要的消息
-3. 点击「收入素材库」
-4. 选择分类，确认保存
-
----
-
-## 服务端口
 
 | 服务 | 端口 | 用途 |
-|------|------|------|
-| **前端 Vite** | 5173 | React 开发服务器（主入口） |
-| **后端 FastAPI** | 8000 | REST API + AI 对话 |
-| **微信导出** | 5679 | 聊天记录解密/导出服务 |
+|---|---|---|
+| 前端 Vite | 5173 | React 开发服务器（主入口） |
+| 后端 FastAPI | 8000 | REST API + AI 对话 |
+| 微信导出 | 5679 | 聊天记录解密 / 导出 |
 
-> 前端会自动连接后端和微信服务，无需额外配置。
+GLM API Key：https://open.bigmodel.cn/ 控制台获取。
 
----
+### 微信导出配置（可选）
+
+1. `wechat-export/config.json` 填 `db_dir`：`%USERPROFILE%\Documents\xwechat_files\<wxid>\db_storage`
+2. `wechat-export/all_keys.json` 需自行提取（密钥绑定当前 Windows 账户 + 微信登录态，换机 / 重装需重提）：管理员 PowerShell 运行微信 4.x 密钥提取工具（GitHub 上的 wechat-decrypt 类项目），生成后复制入 `wechat-export/`
 
 ## 故障排查
 
-### 前端启动失败（端口 5173）
-
 ```powershell
-# 检查 node_modules 是否安装
-Test-Path frontend\node_modules
-# 如果返回 False，重新安装：
-cd frontend; npm install; cd ..
-```
-
-### 后端启动失败（端口 8000）
-
-```powershell
-# 检查 .env 是否存在且有 API Key
-Get-Content backend\.env
-# 检查依赖
-pip install -r backend\requirements.txt
-```
-
-### 微信导出显示离线
-
-1. 确认 Weixin.exe 正在运行
-2. 确认 `config.json` 中的 `db_dir` 路径正确
-3. 确认 `all_keys.json` 存在且密钥有效
-4. 检查微信导出依赖：`pip install pycryptodome zstandard`
-
-### 端口被占用
-
-```powershell
-# 查看占用进程
+# 端口被占用（5173 / 8000 / 5679）
 Get-NetTCPConnection -LocalPort 5173,8000,5679 -State Listen
-# 杀掉占用进程
-Stop-Process -Id <PID> -Force
-# 或直接重新运行 start.ps1（会自动清理）
-```
+Stop-Process -Id <PID> -Force        # 或直接重跑 start.ps1（自动清理旧进程）
 
-### PowerShell 执行策略错误
-
-```powershell
-# 如果无法运行 .ps1 脚本
+# 无法运行 .ps1
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+# 后端起不来：检查 backend\.env 是否存在且含 API Key；重装依赖
+pip install -r backend\requirements.txt
+
+# 微信导出离线：确认 Weixin.exe 在运行、db_dir 路径正确、all_keys.json 有效
 ```
 
----
+## 说明
 
-## 项目结构
-
-```
-ice-workbench/
-│
-├── frontend/                  # React 前端
-│   ├── src/
-│   │   ├── api/               # API 客户端
-│   │   │   └── wechat.js      # 微信导出 API
-│   │   ├── stores/            # Zustand 状态管理
-│   │   │   └── wechatStore.js # 微信导出状态（收藏/隐藏/搜索）
-│   │   ├── pages/
-│   │   │   ├── WeChatExport.jsx   # 微信导出主页面
-│   │   │   ├── WeChatExport.css   # 微信导出样式
-│   │   │   ├── KnowledgeBase.jsx  # AI 对话页
-│   │   │   ├── Library.jsx        # 素材库
-│   │   │   └── CreativeStudio.jsx # 创作区
-│   │   │   └── wechat/            # 微信导出子组件
-│   │   │       ├── ContactList.jsx   # 联系人列表（搜索/收藏/右键隐藏）
-│   │   │       ├── DetailPane.jsx    # 导出操作面板
-│   │   │       ├── HistoryPane.jsx   # 导出历史
-│   │   │       └── CollectDialog.jsx # 收入素材库对话框
-│   │   ├── layouts/           # 布局
-│   │   └── styles/            # 全局样式
-│   ├── package.json
-│   └── vite.config.js
-│
-├── backend/                   # FastAPI 后端
-│   ├── app/
-│   │   ├── routers/           # API 路由（chat/materials/conversations）
-│   │   ├── services/          # 业务逻辑（LLM/CLIP/素材管理）
-│   │   ├── models/            # 数据模型
-│   │   ├── schemas/           # Pydantic 模型
-│   │   └── config.py          # 配置加载
-│   ├── .env.example           # 环境变量模板
-│   └── requirements.txt
-│
-├── wechat-export/             # 微信聊天记录导出
-│   ├── export_server.py       # HTTP 服务 (:5679)
-│   ├── mcp_server.py          # 解密核心逻辑
-│   ├── config.json            # 配置（需自建）
-│   ├── all_keys.json          # 密钥（需自建）
-│   └── requirements.txt
-│
-├── start.ps1                  # 一键启动脚本（后台静默）
-├── dev.ps1                    # 开发启动脚本（前台调试）
-├── build.ps1                  # 前端构建脚本
-└── README.md                  # 本文档
-```
-
----
-
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 前端框架 | React 19 + Vite 8 |
-| 状态管理 | Zustand 5 |
-| UI 组件 | Lucide Icons + 自定义 CSS |
-| Markdown | markdown-it + DOMPurify |
-| 后端框架 | FastAPI + Uvicorn |
-| 数据库 | SQLite + SQLAlchemy |
-| AI 模型 | GLM-5.2（智谱 AI） |
-| 微信解密 | SQLCipher 4 + AES-256-CBC |
-
----
-
-## License
-
-个人项目，代码仅供学习参考，未附开源许可证；微信记录导出功能仅支持导出本人聊天数据。
+个人项目，代码仅供学习参考；未附开源许可证。微信记录导出功能仅支持导出本人聊天数据。
