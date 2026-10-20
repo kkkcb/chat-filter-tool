@@ -73,8 +73,8 @@
 ### 第 1 步：克隆仓库
 
 ```powershell
-git clone https://github.com/kkkcb/chat-filter-tool.git
-cd chat-filter-tool
+git clone https://github.com/kkkcb/ice-workbench.git
+cd ice-workbench
 ```
 
 > 如果没装 Git，去 https://git-scm.com/ 下载安装
@@ -350,7 +350,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ## 项目结构
 
 ```
-chat-filter-tool/
+ice-workbench/
 │
 ├── frontend/                  # React 前端
 │   ├── src/
