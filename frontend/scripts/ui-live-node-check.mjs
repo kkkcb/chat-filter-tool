@@ -7,10 +7,10 @@ const browser = await puppeteer.launch({
   defaultViewport: { width: 1400, height: 900 },
 });
 const page = await browser.newPage();
-await page.goto('http://YOUR_VPS_IP/', { waitUntil: 'networkidle2', timeout: 40000 });
+await page.goto('http://${VPS_IP:-YOUR_VPS_IP}/', { waitUntil: 'networkidle2', timeout: 40000 });
 await new Promise((r) => setTimeout(r, 1500));
 if (await page.evaluate(() => !!document.querySelector('.agate'))) {
-  await page.type('.agate input', 'REMOVED', { delay: 5 });
+  await page.type('.agate input', process.env.ICE_GATE_PW || 'YOUR_GATE_PW', { delay: 5 });
   await page.evaluate(() => [...document.querySelectorAll('.agate-btn')].find((b) => b.textContent === '确认')?.click());
   await new Promise((r) => setTimeout(r, 2000));
 }

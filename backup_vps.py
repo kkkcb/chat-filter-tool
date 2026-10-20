@@ -15,7 +15,7 @@ BACKUP_DIR = os.path.join(WORKSPACE, "backups")
 LOG_FILE = os.path.join(BACKUP_DIR, "backup.log")
 PASS_FILE = os.path.join(WORKSPACE, ".vps-pass")
 
-VPS_IP = "YOUR_VPS_IP"
+VPS_IP = os.environ.get("VPS_IP", "YOUR_VPS_IP")
 VPS_USER = "root"
 
 
